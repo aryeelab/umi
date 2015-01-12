@@ -4,10 +4,11 @@ import re
 import gzip
 import itertools
 import argparse
+import subprocess
 
 __author__ = 'Martin Aryee'
 
-# python ~/work/projects/umi/consolidate.py --read1_in bcl/Undetermined_S0_L001_R1_001.fastq.gz --read2_in bcl/Undetermined_S0_L001_R2_001.fastq.gz --read1_out umi1.fastq.gz --read2_out umi2.fastq.gz --index1 bcl/Undetermined_S0_L001_I1_001.fastq.gz --index2 bcl/Undetermined_S0_L001_I2_001.fastq.gz
+# python ~/work/projects/umi/umitag.py --read1_in bcl/Undetermined_S0_L001_R1_001.fastq.gz --read2_in bcl/Undetermined_S0_L001_R2_001.fastq.gz --read1_out umi1.fastq.gz --read2_out umi2.fastq.gz --index1 bcl/Undetermined_S0_L001_I1_001.fastq.gz --index2 bcl/Undetermined_S0_L001_I2_001.fastq.gz
 
 
 parser = argparse.ArgumentParser()
@@ -30,6 +31,8 @@ out_dir = args['out_dir']
 # args['index1'] = os.path.join(base, 'Undetermined_S0_L001_I1_001.fastq.gz')
 # args['index2'] = os.path.join(base, 'Undetermined_S0_L001_I2_001.fastq.gz')
 
+r1_umitagged_unsorted_file = '/PHShome/ma695/tmp/tmp.umitagged.1'
+r2_umitagged_unsorted_file = '/PHShome/ma695/tmp/tmp.umitagged.2'
 
 def fq(file):
     if re.search('.gz$', file):
@@ -54,9 +57,9 @@ def get_umi(r1, r2, i1, i2):
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
-r1_out = gzip.open(args['read1_out'], 'wb')
-r2_out = gzip.open(args['read2_out'], 'wb')
-
+# Create UMI-tagged R1 and R2 FASTQs
+r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
+r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
 #for r1,r2,i1,i2 in itertools.izip(fq(args['read1']), fq(args['read2']), fq(args['index1']), fq(args['index2'])):
 it = itertools.izip(fq(args['read1_in']), fq(args['read2_in']), fq(args['index1']), fq(args['index2']))
 for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
@@ -66,22 +69,18 @@ for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
     r1[0] = '%s %s\n' % (r1[0].rstrip(), molecular_id)
     r2[0] = '%s %s\n' % (r2[0].rstrip(), molecular_id)
     for line in r1:
-        r1_out.write(line)
+        r1_umitagged.write(line)
     for line in r2:
-        r2_out.write(line)
+        r2_umitagged.write(line)
+r1_umitagged.close()
+r2_umitagged.close()
 
-# Close files
-r1_out.close()
-r2_out.close()
+# Sort fastqs based on molecular barcode
+cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + args['read1_out']
+subprocess.check_call(cmd, shell=True)
+cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + args['read2_out']
+subprocess.check_call(cmd, shell=True)
 
 
-def sortFastq(fastq_toSort_dir):
-
-    print("Sorting fastqs based on molecular barcode")
-
-    for file in os.listdir(fastq_toSort_dir):
-        if fnmatch.fnmatch(file, '*R1.fastq') or fnmatch.fnmatch(file, '*R2.fastq'):
-            file_sorted = re.sub('.fastq$', '_sorted.fastq', file)
-            cmd = 'cat ' + os.path.join(fastq_toSort_dir, file) + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + os.path.join(fastq_toSort_dir, file_sorted)
-            subprocess.check_call(cmd, shell=True)
-            os.remove(os.path.join(fastq_toSort_dir, file))
+os.remove(r1_umitagged_unsorted_file)
+os.remove(r2_umitagged_unsorted_file)
