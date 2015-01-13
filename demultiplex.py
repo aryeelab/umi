@@ -48,12 +48,6 @@ def get_sample_barcode(i1, i2):
     seq2 = i2[1]
     return seq1[0:8] + seq2[0:8]
 
-# Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
-def get_umi(r1, r2, i1, i2):
-    molecular_barcode = i2[1][8:16]
-    return '%s_%s' % (molecular_barcode, r1[1][0:6])
-
-
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
@@ -77,13 +71,6 @@ for r1,r2,i1,i2 in itertools.izip(fq(args['read1']), fq(args['read2']), fq(args[
     if total_count % 1000000 == 0:
         print ("Processed %d reads in %.1f minutes." % (total_count, (time.time()-start)/60))
     sample_barcode = get_sample_barcode(i1, i2)
-    # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
-    molecular_id = get_umi(r1, r2, i1, i2)
-    # Add molecular id to read headers
-    r1[0] = '%s %s\n' % (r1[0].rstrip(), molecular_id)
-    r2[0] = '%s %s\n' % (r2[0].rstrip(), molecular_id)
-    i1[0] = '%s %s\n' % (i1[0].rstrip(), molecular_id)
-    i2[0] = '%s %s\n' % (i2[0].rstrip(), molecular_id)
 
     # Increment read count and create output buffers if this is a new sample barcode
     if not count.has_key(sample_barcode):
@@ -109,13 +96,13 @@ for r1,r2,i1,i2 in itertools.izip(fq(args['read1']), fq(args['read2']), fq(args[
         outfiles_i2[sample_barcode] = open(os.path.join(out_dir, '%s.I2.fastq' % sample_barcode), 'w')
         # Spill the buffers to sample-specific fastqs
         for record in buffer_r1[sample_barcode] + r1:
-            print (''.join(record), file=outfiles_r1[sample_barcode], end="")
+            outfiles_r1[sample_barcode].write(''.join(record))
         for record in buffer_r2[sample_barcode] + r2:
-            print (''.join(record), file=outfiles_r2[sample_barcode], end="")
+            outfiles_r2[sample_barcode].write(''.join(record))
         for record in buffer_i1[sample_barcode] + i1:
-            print (''.join(record), file=outfiles_i1[sample_barcode], end="")
+            outfiles_i1[sample_barcode].write(''.join(record))
         for record in buffer_i2[sample_barcode] + i2:
-            print (''.join(record), file=outfiles_i2[sample_barcode], end="")
+            outfiles_i2[sample_barcode].write(''.join(record))
         del buffer_r1[sample_barcode]
         del buffer_r2[sample_barcode]
         del buffer_i1[sample_barcode]
@@ -138,13 +125,13 @@ undetermined_i1 = open(os.path.join(out_dir, 'undetermined.I1.fastq'), 'w')
 undetermined_i2 = open(os.path.join(out_dir, 'undetermined.I2.fastq'), 'w')
 for sample_barcode in buffer_r1.keys():
     for record in buffer_r1[sample_barcode]:
-        print (''.join(record), file=undetermined_r1, end="")
+        undetermined_r1.write(''.join(record))
     for record in buffer_r2[sample_barcode]:
-        print (''.join(record), file=undetermined_r2, end="")
+        undetermined_r2.write(''.join(record))
     for record in buffer_i1[sample_barcode]:
-        print (''.join(record), file=undetermined_i1, end="")
+        undetermined_i1.write(''.join(record))
     for record in buffer_i2[sample_barcode]:
-        print (''.join(record), file=undetermined_i2, end="")
+        undetermined_i2.write(''.join(record))
 
 # Close files
 for sample_barcode in outfiles_r1:
