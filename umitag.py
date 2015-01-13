@@ -31,8 +31,8 @@ out_dir = args['out_dir']
 # args['index1'] = os.path.join(base, 'Undetermined_S0_L001_I1_001.fastq.gz')
 # args['index2'] = os.path.join(base, 'Undetermined_S0_L001_I2_001.fastq.gz')
 
-r1_umitagged_unsorted_file = '/PHShome/ma695/tmp/tmp.umitagged.1'
-r2_umitagged_unsorted_file = '/PHShome/ma695/tmp/tmp.umitagged.2'
+r1_umitagged_unsorted_file = args['read1_out'] + '.tmp'
+r2_umitagged_unsorted_file = args['read2_out'] + '.tmp'
 
 def fq(file):
     if re.search('.gz$', file):
@@ -42,6 +42,8 @@ def fq(file):
     with fastq as f:
         while True:
             l1 = f.readline()
+            if not l1:
+                break
             l2 = f.readline()
             l3 = f.readline()
             l4 = f.readline()
@@ -60,9 +62,9 @@ if not os.path.exists(out_dir):
 # Create UMI-tagged R1 and R2 FASTQs
 r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
 r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
-#for r1,r2,i1,i2 in itertools.izip(fq(args['read1']), fq(args['read2']), fq(args['index1']), fq(args['index2'])):
-it = itertools.izip(fq(args['read1_in']), fq(args['read2_in']), fq(args['index1']), fq(args['index2']))
-for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
+#it = itertools.izip(fq(args['read1_in']), fq(args['read2_in']), fq(args['index1']), fq(args['index2']))
+#for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
+for r1,r2,i1,i2 in itertools.izip(fq(args['read1_in']), fq(args['read2_in']), fq(args['index1']), fq(args['index2'])):
     # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
     molecular_id = get_umi(r1, r2, i1, i2)
     # Add molecular id to read headers
