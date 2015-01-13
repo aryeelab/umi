@@ -4,6 +4,7 @@ import re
 import gzip
 import itertools
 import argparse
+import time
 
 __author__ = 'Martin Aryee'
 
@@ -35,6 +36,8 @@ def fq(file):
     with fastq as f:
         while True:
             l1 = f.readline()
+            if not l1:
+                break
             l2 = f.readline()
             l3 = f.readline()
             l4 = f.readline()
@@ -59,6 +62,7 @@ outfiles_r2 = {}
 outfiles_i1 = {}
 outfiles_i2 = {}
 
+total_count = 0
 count = {}
 buffer_r1 = {}
 buffer_r2 = {}
@@ -67,7 +71,11 @@ buffer_i2 = {}
 
 #it = itertools.izip(fq(args['read1']), fq(args['read2']), fq(args['index1']), fq(args['index2']))
 #for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
+start = time.time()
 for r1,r2,i1,i2 in itertools.izip(fq(args['read1']), fq(args['read2']), fq(args['index1']), fq(args['index2'])):
+    total_count += 1
+    if total_count % 1000000 == 0:
+        print ("Processed %d reads in %.1f minutes." % (total_count, (time.time()-start)/60))
     sample_barcode = get_sample_barcode(i1, i2)
     # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
     molecular_id = get_umi(r1, r2, i1, i2)
