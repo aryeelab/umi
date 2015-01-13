@@ -1,11 +1,16 @@
 # umi
 Preprocessing tools for unique molecular index (UMI) sequencing reads
 
+## Depedencies
+
+ - argparse
+ - HTSeq
+
 ## Example
 The example directory contains undemultipexed data from a subset of an Illumina MiSeq run.
 
 #### Demultiplex reads
-    cd test
+    cd example
     python ../demultiplex.py --min_reads 1000 --read1 undemux.r1.fastq.gz --read2 undemux.r2.fastq.gz --index1 undemux.i1.fastq.gz --index2 undemux.i2.fastq.gz --sample_barcodes samplekey.txt
     
 #### Add a molecular index (UMI) tag to the header of the R1 and R2 reads
