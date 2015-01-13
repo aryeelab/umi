@@ -15,6 +15,7 @@ parser.add_argument('--read2', required=True)
 parser.add_argument('--index1', required=True)
 parser.add_argument('--index2', required=True)
 parser.add_argument('--min_reads', type=int, default=10000)
+parser.add_argument('--sample_barcodes')
 parser.add_argument('--out_dir', default='.')
 args = vars(parser.parse_args())
 out_dir = args['out_dir']
@@ -25,8 +26,6 @@ out_dir = args['out_dir']
 #args['read2'] = os.path.join(base, 'Undetermined_S0_L001_R2_001.fastq.gz')
 #args['index1'] = os.path.join(base, 'Undetermined_S0_L001_I1_001.fastq.gz')
 #args['index2'] = os.path.join(base, 'Undetermined_S0_L001_I2_001.fastq.gz')
-
-
 
 def fq(file):
     if re.search('.gz$', file):
@@ -43,13 +42,25 @@ def fq(file):
             l4 = f.readline()
             yield [l1, l2, l3, l4]
 
-def get_sample_barcode(i1, i2):
+def get_sample_id(i1, i2):
     seq1 = i1[1]
     seq2 = i2[1]
-    return seq1[0:8] + seq2[0:8]
+    sample_barcode = seq1[1:8] + seq2[1:8]
+    if sample_names.has_key(sample_barcode):
+        return sample_names[sample_barcode]
+    else:
+        return sample_barcode
 
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
+
+sample_names = {}
+if not args['sample_barcodes']==None:
+    for line in open(args['sample_barcodes'], 'r'):
+        fields = line.strip().split('\t')
+        if len(fields)==2:
+            sampleid, barcode = fields
+            sample_names[barcode] = sampleid
 
 outfiles_r1 = {}
 outfiles_r2 = {}
@@ -70,52 +81,52 @@ for r1,r2,i1,i2 in itertools.izip(fq(args['read1']), fq(args['read2']), fq(args[
     total_count += 1
     if total_count % 1000000 == 0:
         print ("Processed %d reads in %.1f minutes." % (total_count, (time.time()-start)/60))
-    sample_barcode = get_sample_barcode(i1, i2)
+    sample_id = get_sample_id(i1, i2)
 
     # Increment read count and create output buffers if this is a new sample barcode
-    if not count.has_key(sample_barcode):
-        count[sample_barcode] = 0
-        buffer_r1[sample_barcode] = []
-        buffer_r2[sample_barcode] = []
-        buffer_i1[sample_barcode] = []
-        buffer_i2[sample_barcode] = []
-    count[sample_barcode] += 1
+    if not count.has_key(sample_id):
+        count[sample_id] = 0
+        buffer_r1[sample_id] = []
+        buffer_r2[sample_id] = []
+        buffer_i1[sample_id] = []
+        buffer_i2[sample_id] = []
+    count[sample_id] += 1
 
     # Write the reads to file or to sample-specific output buffers if we haven't
     # reached min_reads
     # The buffers are used to avoid writing fastqs for sample barcodes with very few reads.
-    if count[sample_barcode] < args['min_reads']:
-        buffer_r1[sample_barcode].append(r1)
-        buffer_r2[sample_barcode].append(r2)
-        buffer_i1[sample_barcode].append(i1)
-        buffer_i2[sample_barcode].append(i2)
-    elif count[sample_barcode] == args['min_reads']:
-        outfiles_r1[sample_barcode] = open(os.path.join(out_dir, '%s.r1.fastq' % sample_barcode), 'w')
-        outfiles_r2[sample_barcode] = open(os.path.join(out_dir, '%s.r2.fastq' % sample_barcode), 'w')
-        outfiles_i1[sample_barcode] = open(os.path.join(out_dir, '%s.i1.fastq' % sample_barcode), 'w')
-        outfiles_i2[sample_barcode] = open(os.path.join(out_dir, '%s.i2.fastq' % sample_barcode), 'w')
+    if count[sample_id] < args['min_reads']:
+        buffer_r1[sample_id].append(r1)
+        buffer_r2[sample_id].append(r2)
+        buffer_i1[sample_id].append(i1)
+        buffer_i2[sample_id].append(i2)
+    elif count[sample_id] == args['min_reads']:
+        outfiles_r1[sample_id] = open(os.path.join(out_dir, '%s.r1.fastq' % sample_id), 'w')
+        outfiles_r2[sample_id] = open(os.path.join(out_dir, '%s.r2.fastq' % sample_id), 'w')
+        outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % sample_id), 'w')
+        outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % sample_id), 'w')
         # Spill the buffers to sample-specific fastqs
-        for record in buffer_r1[sample_barcode] + r1:
-            outfiles_r1[sample_barcode].write(''.join(record))
-        for record in buffer_r2[sample_barcode] + r2:
-            outfiles_r2[sample_barcode].write(''.join(record))
-        for record in buffer_i1[sample_barcode] + i1:
-            outfiles_i1[sample_barcode].write(''.join(record))
-        for record in buffer_i2[sample_barcode] + i2:
-            outfiles_i2[sample_barcode].write(''.join(record))
-        del buffer_r1[sample_barcode]
-        del buffer_r2[sample_barcode]
-        del buffer_i1[sample_barcode]
-        del buffer_i2[sample_barcode]
+        for record in buffer_r1[sample_id] + r1:
+            outfiles_r1[sample_id].write(''.join(record))
+        for record in buffer_r2[sample_id] + r2:
+            outfiles_r2[sample_id].write(''.join(record))
+        for record in buffer_i1[sample_id] + i1:
+            outfiles_i1[sample_id].write(''.join(record))
+        for record in buffer_i2[sample_id] + i2:
+            outfiles_i2[sample_id].write(''.join(record))
+        del buffer_r1[sample_id]
+        del buffer_r2[sample_id]
+        del buffer_i1[sample_id]
+        del buffer_i2[sample_id]
     else:
         for line in r1:
-            print (line, file=outfiles_r1[sample_barcode], end="")
+            print (line, file=outfiles_r1[sample_id], end="")
         for line in r2:
-            print (line, file=outfiles_r2[sample_barcode], end="")
+            print (line, file=outfiles_r2[sample_id], end="")
         for line in i1:
-            print (line, file=outfiles_i1[sample_barcode], end="")
+            print (line, file=outfiles_i1[sample_id], end="")
         for line in i2:
-            print (line, file=outfiles_i2[sample_barcode], end="")
+            print (line, file=outfiles_i2[sample_id], end="")
 
 # Write remaining buffered reads to a single fastq.
 # (These reads correspond to barcodes that were seen less than min_reads times)
@@ -123,22 +134,22 @@ undetermined_r1 = open(os.path.join(out_dir, 'undetermined.r1.fastq'), 'w')
 undetermined_r2 = open(os.path.join(out_dir, 'undetermined.r2.fastq'), 'w')
 undetermined_i1 = open(os.path.join(out_dir, 'undetermined.i1.fastq'), 'w')
 undetermined_i2 = open(os.path.join(out_dir, 'undetermined.i2.fastq'), 'w')
-for sample_barcode in buffer_r1.keys():
-    for record in buffer_r1[sample_barcode]:
+for sample_id in buffer_r1.keys():
+    for record in buffer_r1[sample_id]:
         undetermined_r1.write(''.join(record))
-    for record in buffer_r2[sample_barcode]:
+    for record in buffer_r2[sample_id]:
         undetermined_r2.write(''.join(record))
-    for record in buffer_i1[sample_barcode]:
+    for record in buffer_i1[sample_id]:
         undetermined_i1.write(''.join(record))
-    for record in buffer_i2[sample_barcode]:
+    for record in buffer_i2[sample_id]:
         undetermined_i2.write(''.join(record))
 
 # Close files
-for sample_barcode in outfiles_r1:
-    outfiles_r1[sample_barcode].close()
-    outfiles_r2[sample_barcode].close()
-    outfiles_i1[sample_barcode].close()
-    outfiles_i2[sample_barcode].close()
+for sample_id in outfiles_r1:
+    outfiles_r1[sample_id].close()
+    outfiles_r2[sample_id].close()
+    outfiles_i1[sample_id].close()
+    outfiles_i2[sample_id].close()
 undetermined_r1.close()
 undetermined_r2.close()
 undetermined_i1.close()
