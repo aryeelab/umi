@@ -50,10 +50,10 @@ def fq(file):
             yield [l1, l2, l3, l4]
 
 
-# Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
+# Create molecular ID by concatenating molecular barcode and beginning of r1 and r2 read sequences
 def get_umi(r1, r2, i1, i2):
     molecular_barcode = i2[1][8:16]
-    return '%s_%s' % (molecular_barcode, r1[1][0:6])
+    return '%s_%s_%s' % (molecular_barcode, r1[1][0:6], r2[1][0:6])
 
 
 if not os.path.exists(out_dir):
