@@ -31,7 +31,7 @@ def fq(file):
             yield [l1, l2, l3, l4]
 
 
-def get_sample_id(i1, i2):
+def get_sample_id(i1, i2, sample_names):
     seq1 = i1[1]
     seq2 = i2[1]
     sample_barcode = seq1[1:8] + seq2[1:8]
@@ -41,17 +41,20 @@ def get_sample_id(i1, i2):
         return sample_barcode
 
 
-def demultiplex(read1, read2, index1, index2, min_reads, sample_barcodes, out_dir):
+def demultiplex(read1, read2, index1, index2, sample_barcodes, out_dir, min_reads=10000):
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    sample_names = {}
-    if not sample_barcodes==None:
-        for line in open(sample_barcodes, 'r'):
-            fields = line.strip().split('\t')
-            if len(fields)==2:
-                sampleid, barcode = fields
-                sample_names[barcode] = sampleid
+    if type(sample_barcodes) != dict:
+        sample_names = {}
+        if not sample_barcodes==None:
+            for line in open(sample_barcodes, 'r'):
+                fields = line.strip().split('\t')
+                if len(fields)==2:
+                    sampleid, barcode = fields
+                    sample_names[barcode] = sampleid
+    else:
+        sample_names = sample_barcodes
 
     outfiles_r1 = {}
     outfiles_r2 = {}
@@ -68,11 +71,11 @@ def demultiplex(read1, read2, index1, index2, min_reads, sample_barcodes, out_di
     #it = itertools.izip(fq(args['read1']), fq(args['read2']), fq(args['index1']), fq(args['index2']))
     #for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
     start = time.time()
-    for r1,r2,i1,i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2):
+    for r1,r2,i1,i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
         total_count += 1
         if total_count % 1000000 == 0:
             print ("Processed %d reads in %.1f minutes." % (total_count, (time.time()-start)/60))
-        sample_id = get_sample_id(i1, i2)
+        sample_id = get_sample_id(i1, i2, sample_names)
 
         # Increment read count and create output buffers if this is a new sample barcode
         if not count.has_key(sample_id):
@@ -160,7 +163,7 @@ def main():
     parser.add_argument('--out_dir', default='.')
     args = vars(parser.parse_args())
 
-    demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['min_reads'], args['sample_barcodes'], args['out_dir'])
+    demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['sample_barcodes'], args['out_dir'], min_reads=args['min_reads'])
 
 if __name__ == '__main__':
     main()
