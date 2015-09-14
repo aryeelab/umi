@@ -17,29 +17,34 @@ sys.path.append('..')
 import consolidate
 
 TEST_OUTPUT_PATH = 'output'
-TEST_FASTQ_FILE = 'data/consolidate/'
-TEST_MIN_QUAL = 
-TEST_MIN_FREQ = 
+TEST_DATA_FILES = {'read1': 'data/umitagged/mysample.r1.umitagged.fastq',
+                  'read2': 'data/umitagged/mysample.r2.umitagged.fastq',
+                  'read1_out': os.path.join(TEST_OUTPUT_PATH, 'mysample.r1.consolidated.fastq'),
+                  'read2_out': os.path.join(TEST_OUTPUT_PATH, 'mysample.r2.consolidated.fastq')}
+TEST_MIN_QUAL = 15
+TEST_MIN_FREQ = 0.9
+CORRECT_UMITAGGED_OUTPUT_FOLDER = 'data/consolidated'
 
-
-class TestDemultiplex(unittest.TestCase):
+class TestConsolidate(unittest.TestCase):
 
     def setUp(self):
         # Create the output folder
         os.makedirs(TEST_OUTPUT_PATH)
 
 
-    def testDemultiplexTestCase(self):
-        # Run the demultiplex module on the test data
+    def testConsolidateTestCase(self):
+        # Run the consolidation module on the test data
         consolidate.consolidate(TEST_DATA_FILES['read1'],
-                                TEST_DATA_FILES['read2'],
-                                TEST_DATA_FILES['index1'],
-                                TEST_DATA_FILES['index2'],
-                                TEST_SAMPLE_BARCODES,
-                                TEST_OUTPUT_PATH,
-                                min_reads=TEST_MIN_READS)
+                                TEST_DATA_FILES['read1_out'],
+                                TEST_MIN_QUAL,
+                                TEST_MIN_FREQ)
 
-        self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_DEMULTIPLEX_OUTPUT_FOLDER))
+        consolidate.consolidate(TEST_DATA_FILES['read2'],
+                                TEST_DATA_FILES['read2_out'],
+                                TEST_MIN_QUAL,
+                                TEST_MIN_FREQ)
+
+        self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_UMITAGGED_OUTPUT_FOLDER))
 
 
     def tearDown(self):

@@ -33,7 +33,7 @@ class TestUMITag(unittest.TestCase):
 
 
     def testUMITagTestCase(self):
-        # Run the demultiplex module on the test data
+        # Run the umitag module on the test data
         umitag.umitag(TEST_DATA_FILES['read1'],
                                 TEST_DATA_FILES['read2'],
                                 TEST_DATA_FILES['index1'],
