@@ -18,13 +18,13 @@ import demultiplex
 
 
 TEST_SAMPLE_BARCODES = {'AGGCATGAGATCGC': 'mysample', 'GACTCCTGCGATAT': 'sample2'}
-TEST_DATA_FILES = {'read1': 'data/undemux/undemux.r1.fastq',
-                  'read2': 'data/undemux/undemux.r2.fastq',
-                  'index1': 'data/undemux/undemux.i1.fastq',
-                  'index2': 'data/undemux/undemux.i2.fastq'}
+TEST_DATA_FILES = {'read1': 'data/undemultiplexed/undemux.r1.fastq',
+                  'read2': 'data/undemultiplexed/undemux.r2.fastq',
+                  'index1': 'data/undemultiplexed/undemux.i1.fastq',
+                  'index2': 'data/undemultiplexed/undemux.i2.fastq'}
 TEST_OUTPUT_PATH = 'output'
 TEST_MIN_READS = 1000
-CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'data/demux_results'
+CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'data/demultiplexed'
 
 class TestDemultiplex(unittest.TestCase):
 
