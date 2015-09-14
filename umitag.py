@@ -19,9 +19,6 @@ __author__ = 'Martin Aryee'
 # args['index1'] = os.path.join(base, 'Undetermined_S0_L001_I1_001.fastq.gz')
 # args['index2'] = os.path.join(base, 'Undetermined_S0_L001_I2_001.fastq.gz')
 
-r1_umitagged_unsorted_file = args['read1_out'] + '.tmp'
-r2_umitagged_unsorted_file = args['read2_out'] + '.tmp'
-
 def fq(file):
     if re.search('.gz$', file):
         fastq = gzip.open(file, 'rb')
@@ -44,15 +41,19 @@ def get_umi(r1, r2, i1, i2):
     return '%s_%s_%s' % (molecular_barcode, r1[1][0:6], r2[1][0:6])
 
 def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir):
+
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
+
+    r1_umitagged_unsorted_file = read1_out + '.tmp'
+    r2_umitagged_unsorted_file = read2_out + '.tmp'
 
     # Create UMI-tagged R1 and R2 FASTQs
     r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
     r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
     #it = itertools.izip(fq(args['read1_in']), fq(args['read2_in']), fq(args['index1']), fq(args['index2']))
     #for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
-    for r1,r2,i1,i2 in itertools.izip(fq(args['read1_in']), fq(args['read2_in']), fq(args['index1']), fq(args['index2'])):
+    for r1,r2,i1,i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
         # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
         molecular_id = get_umi(r1, r2, i1, i2)
         # Add molecular id to read headers
@@ -66,9 +67,9 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir):
     r2_umitagged.close()
 
     # Sort fastqs based on molecular barcode
-    cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + args['read1_out']
+    cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + read1_out
     subprocess.check_call(cmd, shell=True)
-    cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + args['read2_out']
+    cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -t " " | tr "\t" "\n" >' + read2_out
     subprocess.check_call(cmd, shell=True)
 
 
@@ -87,6 +88,8 @@ def main():
     parser.add_argument('--out_dir', default='.')
     args = vars(parser.parse_args())
     out_dir = args['out_dir']
+
+    umitag(read1_in, read2_in, index1, index2, read1_out, read2_out, out_dir)
 
 if __name__ == '__main__':
     main()
