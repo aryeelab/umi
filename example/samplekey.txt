@@ -1,3 +1,2 @@
 mysample	AGGCATGAGATCGC
 sample2	GACTCCTGCGATAT
-
