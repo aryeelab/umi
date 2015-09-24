@@ -2,6 +2,7 @@ import os
 import sys
 import inspect
 import filecmp
+from itertools import islice
 
 def checkFolderEquality(folder1, folder2):
     """
@@ -21,3 +22,8 @@ def checkFolderEquality(folder1, folder2):
             return False
 
     return True
+
+def head(filepath, n=10):
+    with open(filepath) as f:
+        for line in islice(f, n):
+            print line
