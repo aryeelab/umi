@@ -10,8 +10,8 @@ def checkFolderEquality(folder1, folder2):
     names are the same.
     """
 
-    folder1_files = os.listdir(folder1)
-    folder2_files = os.listdir(folder2)
+    folder1_files = [x for x in os.listdir(folder1) if not x.startswith('.')]
+    folder2_files = [x for x in os.listdir(folder2) if not x.startswith('.')]
 
     if set(folder1_files) != set(folder2_files):
         return False
