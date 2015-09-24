@@ -42,16 +42,12 @@ class TestUMITag(unittest.TestCase):
                                 TEST_DATA_FILES['read2_out'],
                                 TEST_OUTPUT_PATH)
 
-        print 'Output Files:', os.listdir(TEST_OUTPUT_PATH)
-        print utils.head(TEST_DATA_FILES['read1_out'])
-        print utils.head(TEST_DATA_FILES['read2_out'])
-
         self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_UMITAGGED_OUTPUT_FOLDER))
 
 
     def tearDown(self):
         # Delete the output folder and the results
-        # shutil.rmtree(TEST_OUTPUT_PATH)
+        shutil.rmtree(TEST_OUTPUT_PATH)
         pass
 
 if __name__ == '__main__':
