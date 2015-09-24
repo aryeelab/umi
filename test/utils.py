@@ -15,10 +15,12 @@ def checkFolderEquality(folder1, folder2):
     folder2_files = [x for x in os.listdir(folder2) if not x.startswith('.')]
 
     if set(folder1_files) != set(folder2_files):
+        print 'Folders do not have the same filenames.'
         return False
 
     for f in folder1_files:
         if not filecmp.cmp(os.path.join(folder1, f), os.path.join(folder2, f)):
+            print '{0} does not match between folders.'.format(f)
             return False
 
     return True
