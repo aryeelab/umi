@@ -7,7 +7,7 @@ python:
 install: "python setup.py install"
 
 # command to run tests
-script: cd test && nosetests
+script: cd test && nosetests -v
 
 # Disable caching
 cache: false
