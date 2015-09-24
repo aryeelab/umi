@@ -42,6 +42,7 @@ class TestUMITag(unittest.TestCase):
                                 TEST_DATA_FILES['read2_out'],
                                 TEST_OUTPUT_PATH)
 
+        print 'Output Files:', os.listdir(TEST_OUTPUT_PATH)
         self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_UMITAGGED_OUTPUT_FOLDER))
 
 
