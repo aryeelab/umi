@@ -67,9 +67,9 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir):
     r2_umitagged.close()
 
     # Sort fastqs based on molecular barcode
-    cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 -t " " | tr "\t" "\n" >' + read1_out
+    cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read1_out
     subprocess.check_call(cmd, shell=True, env=os.environ.copy())
-    cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 -t " " | tr "\t" "\n" >' + read2_out
+    cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read2_out
     subprocess.check_call(cmd, shell=True, env=os.environ.copy())
 
 
