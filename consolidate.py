@@ -5,6 +5,7 @@ __author__ = 'Martin Aryee'
 
 import HTSeq
 import sys
+import os
 
 #fastq_file = '/data/ngscid-research/testing/CTCTCTACACTGATGG.sorted.fastq'
 #consolidated_fastq_file = '/PHShome/ma695/tmp/tmp.fastq'
@@ -54,6 +55,10 @@ def consolidate_position(bases, quals, min_qual, min_freq):
 
 
 def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
+    outfolder = os.path.dirname(consolidated_fastq_file)
+    if not os.path.exists(outfolder):
+        os.makedirs(outfolder)
+
     outfile = open(consolidated_fastq_file, 'w')
     bins = read_bins(fastq_file)
     #next(bins)

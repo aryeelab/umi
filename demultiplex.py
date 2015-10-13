@@ -35,7 +35,7 @@ def get_sample_id(i1, i2, sample_names):
     seq1 = i1[1]
     seq2 = i2[1]
     sample_barcode = seq1[1:8] + seq2[1:8]
-    if sample_names.has_key(sample_barcode):
+    if sample_barcode in sample_names:
         return sample_names[sample_barcode]
     else:
         return sample_barcode
