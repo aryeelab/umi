@@ -1,15 +1,11 @@
-__author__ = 'maryee'
+__author__ = 'Martin Aryee'
 
 # source /apps/lab/aryee/pyenv/versions/venv-2.7.6/bin/activate
 # python consolidate.py /data/ngscid-research/testing/CTCTCTACACTGATGG.sorted.fastq tmp.fastq 15 0.9
 
 import HTSeq
 import sys
-
-fastq_file = sys.argv[1]
-consolidated_fastq_file = sys.argv[2]
-min_qual = int(sys.argv[3])
-min_freq = float(sys.argv[4])
+import os
 
 #fastq_file = '/data/ngscid-research/testing/CTCTCTACACTGATGG.sorted.fastq'
 #consolidated_fastq_file = '/PHShome/ma695/tmp/tmp.fastq'
@@ -58,36 +54,53 @@ def consolidate_position(bases, quals, min_qual, min_freq):
         return False,'N', 0
 
 
-outfile = open(consolidated_fastq_file, 'w')
-bins = read_bins(fastq_file)
-#next(bins)
+def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
+    outfolder = os.path.dirname(consolidated_fastq_file)
+    if not os.path.exists(outfolder):
+        os.makedirs(outfolder)
 
-num_input_reads = 0
-num_consolidated_reads = 0
-num_successes = 0 # Bases with successful consolidation
-num_bases = 0
-for cur_molecular_id, cur_sample_id, reads in bins:
-    num_input_reads += len(reads)
-    num_consolidated_reads += 1
-    # Get all the bases and quals in the read
-    read_bases = zip(*[list(read.seq) for read in reads])
-    read_quals = zip(*[list(read.qual) for read in reads])
-    # Iterate position by position
-    consolidation_sucess, cons_seq, cons_qual = zip(*[consolidate_position(bases, quals, min_qual, min_freq) for bases, quals in zip(read_bases, read_quals)])
-    # Count consolidation successes and failures
-    num_successes += sum(consolidation_sucess)
-    num_bases += len(consolidation_sucess)
-    # Write consolidated FASTQ read
-    outfile.write('@%s_%d %s\n' % (cur_molecular_id, len(reads), cur_sample_id)) # Header: Molecular id, number of reads, 2nd incoming header field (includes sample id)
-    outfile.write(''.join(cons_seq) +'\n')
-    outfile.write('+\n')
-    outfile.write(''.join([chr(q+33) for q in cons_qual]) + '\n')
+    outfile = open(consolidated_fastq_file, 'w')
+    bins = read_bins(fastq_file)
+    #next(bins)
+
+    num_input_reads = 0
+    num_consolidated_reads = 0
+    num_successes = 0 # Bases with successful consolidation
+    num_bases = 0
+    for cur_molecular_id, cur_sample_id, reads in bins:
+        num_input_reads += len(reads)
+        num_consolidated_reads += 1
+        # Get all the bases and quals in the read
+        read_bases = zip(*[list(read.seq) for read in reads])
+        read_quals = zip(*[list(read.qual) for read in reads])
+        # Iterate position by position
+        consolidation_sucess, cons_seq, cons_qual = zip(*[consolidate_position(bases, quals, min_qual, min_freq) for bases, quals in zip(read_bases, read_quals)])
+        # Count consolidation successes and failures
+        num_successes += sum(consolidation_sucess)
+        num_bases += len(consolidation_sucess)
+        # Write consolidated FASTQ read
+        outfile.write('@%s_%d %s\n' % (cur_molecular_id, len(reads), cur_sample_id)) # Header: Molecular id, number of reads, 2nd incoming header field (includes sample id)
+        outfile.write(''.join(cons_seq) +'\n')
+        outfile.write('+\n')
+        outfile.write(''.join([chr(q+33) for q in cons_qual]) + '\n')
+
+    print "Read %d input reads" % num_input_reads
+    print "Wrote %d consolidated reads" % num_consolidated_reads
+    print "Successfully consolidated %d bases out of %d (%.2f%%)" % (num_successes, num_bases, 100*float(num_successes)/num_bases)
+    outfile.close()
 
 
-print "Read %d input reads" % num_input_reads
-print "Wrote %d consolidated reads" % num_consolidated_reads
-print "Successfully consolidated %d bases out of %d (%.2f%%)" % (num_successes, num_bases, 100*float(num_successes)/num_bases)
-outfile.close()
+def main():
+    if len(sys.argv) < 5:
+        print 'Usage: python consolidate.py fastq_file consolidated_fastq_file min_qual min_freq'
+        sys.exit()
+
+    fastq_file = sys.argv[1]
+    consolidated_fastq_file = sys.argv[2]
+    min_qual = int(sys.argv[3])
+    min_freq = float(sys.argv[4])
+    consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq)
 
 
-
+if __name__ == '__main__':
+    main()
