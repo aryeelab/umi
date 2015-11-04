@@ -6,12 +6,15 @@ __author__ = 'Martin Aryee'
 import HTSeq
 import sys
 import os
+import logging
 
 #fastq_file = '/data/ngscid-research/testing/CTCTCTACACTGATGG.sorted.fastq'
 #consolidated_fastq_file = '/PHShome/ma695/tmp/tmp.fastq'
 #min_qual = 15
 #min_freq = 0.9
 
+# Configure logger
+logger = logging.getLogger('root')
 
 def read_bins(fastq_file):
     infile = HTSeq.FastqReader(fastq_file)
@@ -84,9 +87,9 @@ def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
         outfile.write('+\n')
         outfile.write(''.join([chr(q+33) for q in cons_qual]) + '\n')
 
-    print "Read %d input reads" % num_input_reads
-    print "Wrote %d consolidated reads" % num_consolidated_reads
-    print "Successfully consolidated %d bases out of %d (%.2f%%)" % (num_successes, num_bases, 100*float(num_successes)/num_bases)
+    logger.info("Read %d input reads", num_input_reads)
+    logger.info("Wrote %d consolidated reads", num_consolidated_reads)
+    logger.info("Successfully consolidated %d bases out of %d (%.2f%%)", num_successes, num_bases, 100*float(num_successes)/num_bases)
     outfile.close()
 
 

@@ -5,8 +5,11 @@ import gzip
 import itertools
 import argparse
 import time
+import logging
 
 __author__ = 'Martin Aryee'
+
+logger = logging.getLogger('root')
 
 #args = {'out_dir':'/PHShome/ma695/tmp', 'min_reads':10}
 #base = '/data/joung/sequencing_bcl/131007_M01326_0075_000000000-A6B33/Data/Intensities/BaseCalls'
@@ -74,7 +77,7 @@ def demultiplex(read1, read2, index1, index2, sample_barcodes, out_dir, min_read
     for r1,r2,i1,i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
         total_count += 1
         if total_count % 1000000 == 0:
-            print ("Processed %d reads in %.1f minutes." % (total_count, (time.time()-start)/60))
+            logger.info("Processed %d reads in %.1f minutes.", total_count, (time.time()-start)/60)
         sample_id = get_sample_id(i1, i2, sample_names)
 
         # Increment read count and create output buffers if this is a new sample barcode
@@ -150,7 +153,7 @@ def demultiplex(read1, read2, index1, index2, sample_barcodes, out_dir, min_read
     undetermined_i2.close()
 
     num_fastqs = len([v for k,v in count.iteritems() if v>=min_reads])
-    print('Wrote FASTQs for the %d sample barcodes out of %d with at least %d reads.' % (num_fastqs, len(count), min_reads))
+    logger.info('Wrote FASTQs for the %d sample barcodes out of %d with at least %d reads.', num_fastqs, len(count), min_reads)
 
 def main():
     parser = argparse.ArgumentParser()
