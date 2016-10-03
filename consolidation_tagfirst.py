@@ -21,7 +21,7 @@ Sort input fastq file by molecular id
 def fq_sort_fastq(fastq_file):
     if not os.path.exists(''.join([os.path.dirname(fastq_file), '/sorted/'])):
         os.makedirs(''.join([os.path.dirname(fastq_file), '/sorted/']))
-    command_line = 'cat %s | paste - - - - | sort -k4,4 | tr "\t" "\n" > %s' % (fastq_file, ''.join([os.path.dirname(fastq_file), '/sorted/', 'sorted_', os.path.basename(fastq_file)]))
+    command_line = 'cat %s | paste - - - - | sort -k4,4 -k1,1 | tr "\t" "\n" > %s' % (fastq_file, ''.join([os.path.dirname(fastq_file), '/sorted/', 'sorted_', os.path.basename(fastq_file)]))
     subprocess.check_call(command_line, shell=True, env=os.environ.copy())
 
 """
@@ -49,8 +49,8 @@ def fq_read_bins(fastq_file_sorted):
 Get most common base for adequate frequency
 """
 def fq_consolidate_position(bases, quals, min_qual, min_freq):
-    num = {}
-    qual = {}
+    num, qual = {}, {}
+
     num['A'] = num['C'] = num['G'] = num['T'] = num['N'] = 0
     qual['A'] = qual['C'] = qual['G'] = qual['T'] = qual['N'] = 0
     for bb, qq in zip(bases, quals):
@@ -103,18 +103,20 @@ def fq_consolidate(fastq_file_sorted, min_qual, min_freq, out_dir, out_name):
 
     print("Read %d input reads" % num_input_reads, file=sys.stderr)
     print("Wrote %d consolidated reads" % num_consolidated_reads, file=sys.stderr)
-    print("Successfully consolidated %d bases out of %d (%.2f%%)" % (num_successes, num_bases, 100*float(num_successes)/num_bases), file=sys.stderr)
+    print("Successfully consolidated %d bases out of %d (%.2f%%)" % (num_successes, num_bases, 100 * float(num_successes) / num_bases), file=sys.stderr)
     outfile.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Consolidate samples from a fastq file according to their molecular id')
+    parser = argparse.ArgumentParser(description='Consolidate samples from a fastq file according to their molecular id. Run each paired file SEPARATELY')
+
     parser.add_argument('--fastq_file', help='fastq file', required=True)
     parser.add_argument('--min_qual', help='quality threshold', default=15)
     parser.add_argument('--min_freq', help='frequency threshold', default=0.8)
     parser.add_argument('--sorted', help='indicates if the input fastq file is already sorted', dest='sorted', action='store_true', default=False)
     parser.add_argument('--out_dir', help='directory where to save output files', default='.')
-    parser.add_argument('--out_name', required=True)
+    parser.add_argument('--out_name', help='output fa=ile name, including extension ', required=True)
+
     args = parser.parse_args()
 
     if args.sorted:
