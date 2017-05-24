@@ -58,6 +58,7 @@ def consolidate_position(bases, quals, min_qual, min_freq):
 
 
 def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
+    logger.info("Consolidating reads in %s", fastq_file)
     outfolder = os.path.dirname(consolidated_fastq_file)
     if not os.path.exists(outfolder):
         os.makedirs(outfolder)
@@ -88,7 +89,7 @@ def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
         outfile.write(''.join([chr(q+33) for q in cons_qual]) + '\n')
 
     logger.info("Read %d input reads", num_input_reads)
-    logger.info("Wrote %d consolidated reads", num_consolidated_reads)
+    logger.info("Wrote %d consolidated reads to %s", num_consolidated_reads, consolidated_fastq_file)
     logger.info("Successfully consolidated %d bases out of %d (%.2f%%)", num_successes, num_bases, 100*float(num_successes)/num_bases)
     outfile.close()
 
