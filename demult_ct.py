@@ -11,6 +11,9 @@ import logging
 # 
 # Edited Martin Aryee's function to demultiplex to reduce
 # the amount of memory required to run.
+# Demultiplex based on sample ID and molecular barcode
+# for increased granularity when processing cell free
+# tumor dna.
 # Martin's original demultiplex function can be found
 # here:
 # https://github.com/aryeelab/umi/wiki
@@ -19,7 +22,7 @@ import logging
 __author__ = 'Allison MacLeay'
 
 logging.basicConfig()
-logger = logging.getLogger('demultiplex_nobuff')
+logger = logging.getLogger('demult_ct')
 logger.setLevel(logging.INFO)
 
 

@@ -15,7 +15,7 @@ import utils
 
 # Include the parent directory in the PYTHONPATH for relative imports
 sys.path.append('..')
-import demultiplex_nobuff as demultiplex
+import demult_ct as demultiplex
 
 
 P5_SAMPLE_BARCODES = {'GCGATAT': 'P51', 'AGATCGC': 'P52'}
