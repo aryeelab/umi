@@ -7,6 +7,7 @@ import argparse
 import time
 import logging
 from collections import Counter
+import pandas as pd
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 
@@ -126,8 +127,19 @@ def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12H,,,'):
     return barcode, r1_out, r2_out
 
 
+def ct_to_dict(count):
+    """Count data to dictionary """
+    ctd = {'sample': [], 'molecular_barcode': [], 'count': []}
+    for sample in count:
+        for mol_bc in count[sample]:
+            ctd['sample'].append(sample)
+            ctd['molecular_barcode'].append(mol_bc)
+            ctd['count'].append(count[sample][mol_bc])
+    return ctd
+
+
 def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir, out_fname=None, min_reads=10000,
-                min_mol_bc=100):
+                min_mol_bc=100, stats_out=None):
     """ Demultiplex based on sample name and molecular barcode """
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -206,9 +218,16 @@ def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir,
     for sample_id in outfiles_i2.keys():
         outfiles_i2[sample_id].close()
 
-    num_fastqs = len([v for k, v in count.iteritems() if v >= min_reads])
+    num_fastqs = len([v for k, v in count.iteritems() if sum(v.values()) >= min_reads])
     logger.info('Wrote FASTQs for the %d sample barcodes out of %d with at least %d reads in %.1f minutes.' % (
     num_fastqs, len(count), min_reads, (time.time() - start) / 60))
+    if stats_out:
+        df = pd.DataFrame(ct_to_dict(count))
+        made_cut = pd.DataFrame(df.groupby('sample')['count'].sum() > min_reads)
+        mdf = pd.merge(df, made_cut, left_on='sample', right_index=True, suffixes=['', '_sample_pass'])
+        mdf['molecular_bc_passed'] = mdf['count'] > min_mol_bc
+        mdf['written'] = mdf['count_sample_pass'] & mdf['molecular_bc_passed']
+        mdf.to_csv(stats_out, sep='\t', index=False)
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -225,6 +244,7 @@ if __name__ == '__main__':
     parser.add_argument('--p7_barcodes')
     parser.add_argument('--out_dir', default='.')
     parser.add_argument('--out_fname', default='')
+    parser.add_argument('--stats_out', default=None)
     args = vars(parser.parse_args())
     swap = {}
     do_swap = 1
@@ -248,4 +268,4 @@ if __name__ == '__main__':
         for f in fargs:
             args[f] = swap[f]
     demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['p5_barcodes'], args['p7_barcodes'],
-                args['out_dir'], args['out_fname'], min_reads=args['min_reads'])
+                args['out_dir'], args['out_fname'], min_reads=args['min_reads'], stats_out=None)

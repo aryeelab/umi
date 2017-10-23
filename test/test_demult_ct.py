@@ -1,5 +1,5 @@
 """
-test_demultiplex.py
+test_demult_ct.py
 -------------------------------
 
 Tests for the `demult_ct.py` module for demultiplixing circulating tumor
@@ -27,6 +27,7 @@ TEST_DATA_FILES = {'read1': 'test/data/undemultiplexed/undemux.r1.fastq',
 TEST_OUTPUT_PATH = 'output'
 TEST_MIN_READS = 1000
 CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'test/data/demult_ct'
+TEST_STATS = os.path.join(TEST_OUTPUT_PATH, 'stats.txt')
 
 class TestDemultiplex(unittest.TestCase):
 
@@ -45,7 +46,8 @@ class TestDemultiplex(unittest.TestCase):
                                 P5_SAMPLE_BARCODES,
                                 P7_SAMPLE_BARCODES,
                                 TEST_OUTPUT_PATH,
-                                min_reads=TEST_MIN_READS)
+                                min_reads=TEST_MIN_READS,
+                                stats_out=TEST_STATS)
 
         self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_DEMULTIPLEX_OUTPUT_FOLDER))
 
