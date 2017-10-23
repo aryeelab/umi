@@ -26,7 +26,7 @@ TEST_DATA_FILES = {'read1': 'test/data/undemultiplexed/undemux.r1.fastq',
                   'index2': 'test/data/undemultiplexed/undemux.i2.fastq'}
 TEST_OUTPUT_PATH = 'output'
 TEST_MIN_READS = 1000
-CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'test/data/demultiplex_nobuff'
+CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'test/data/demult_ct'
 
 class TestDemultiplex(unittest.TestCase):
 

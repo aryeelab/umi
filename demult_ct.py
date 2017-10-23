@@ -6,6 +6,7 @@ import itertools
 import argparse
 import time
 import logging
+from collections import Counter
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 
@@ -19,6 +20,7 @@ import logging
 # https://github.com/aryeelab/umi/wiki
 #
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 __author__ = 'Allison MacLeay'
 
 logging.basicConfig()
@@ -44,12 +46,12 @@ def fq(file):
 
 def create_key(f1, f2):
     """Create a combined barcode key file from 2 files"""
-    bc_dictA = {}
-    bc_dictP = {}
-    add_file_to_dict(f1, bc_dictA)
-    add_file_to_dict(f2, bc_dictP)
-    bcAP = [bc_dictA, bc_dictP]
-    return bcAP
+    bc_dict_a = {}
+    bc_dict_p = {}
+    add_file_to_dict(f1, bc_dict_a)
+    add_file_to_dict(f2, bc_dict_p)
+    bc_ap = [bc_dict_a, bc_dict_p]
+    return bc_ap
 
 
 def add_file_to_dict(fname, d):
@@ -71,42 +73,62 @@ def add_file_to_dict(fname, d):
         [id, seq] = line
         d[seq[1:8]] = id
     fh.close()
-    return
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# helper functions
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def get_sample_name(i1,i2,id_array):
-    index1=i1[1][1:8]
-    index2=i2[1][1:8]
-    dictA=id_array[0]
-    dictP=id_array[1]
-    Aname=''
-    Pname=''
-    if index1 in dictP.keys():
-        Pname=dictP[index1]
+
+def get_sample_name(i1, i2, id_array):
+    """Get sample name from p5 and p7 barcode dictionary"""
+    index1 = i1[1][1:8]
+    index2 = i2[1][1:8]
+    dict_a = id_array[0]
+    dict_p = id_array[1]
+
+    if index1 in dict_p.keys():
+        pname = dict_p[index1]
     else:
-        Pname=index1
-    if index2 in dictA.keys():
-        Aname=dictA[index2]
+        pname = index1
+    if index2 in dict_a.keys():
+        aname = dict_a[index2]
     else:
-        Aname=index2
-    return (Aname + '_' + Pname)
-    
+        aname = index2
+    return '{}_{}'.format(aname, pname)
+
+
 def get_seq(i1, i2):
-    seq1=i1[1]
-    seq2=i2[1]
+    """Get sample id sequence """
+    seq1 = i1[1]
+    seq2 = i2[1]
     return seq1[1:8] + seq2[1:8]
 
-def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir, out_fname=None, min_reads=10000):
 
-    # args = {'out_dir':'/PHShome/ma695/tmp', 'min_reads':10}
-    # base = '/data/joung/sequencing_bcl/131007_M01326_0075_000000000-A6B33/Data/Intensities/BaseCalls'
-    # args['read1'] = os.path.join(base, 'Undetermined_S0_L001_R1_001.fastq.gz')
-    # args['read2'] = os.path.join(base, 'Undetermined_S0_L001_R2_001.fastq.gz')
-    # args['index1'] = os.path.join(base, 'Undetermined_S0_L001_I1_001.fastq.gz')
-    # args['index2'] = os.path.join(base, 'Undetermined_S0_L001_I2_001.fastq.gz')
+def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12H,,,'):
+    """ Return molecular barcode and processed R1 and R2
+        molecular barcode is first 8 bases, 12 handle
+        :param strategy - B=barcode H=handle "R1_string,R2_string"
+        :return mol_bc, read1, read2
+    """
+    barcode = ''
+    r1_out = ''
+    r2_out = ''
+    for i, (read, pstr) in enumerate(zip([read1, read2, index1, index2], strategy.split(','))):
+        pos = 0
+        for group in re.findall('\d+\D+', pstr):
+            btype = group[-1]
+            num = int(group[:-1])
+            if btype == 'B':  # Barcode
+                barcode += read[1][pos:pos + num]
+            elif btype == 'H':  # Handle - skip this
+                pass
+            pos += num
+        if i == 0:
+            r1_out = read[1][pos:]
+        elif i == 1:
+            r2_out = read[1][pos:]
+    return barcode, r1_out, r2_out
 
+
+def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir, out_fname=None, min_reads=10000,
+                min_mol_bc=100):
+    """ Demultiplex based on sample name and molecular barcode """
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -126,13 +148,15 @@ def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir,
 
     # Create count dictionary first
     start = time.time()
-    for i1, i2 in itertools.izip(fq(index1), fq(index2)):
+    for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
         sample_id = get_seq(i1, i2)
+        mol_bc, _, _ = get_molecular_barcode(r1, r2, i1, i2)
 
         # Increment read count and create output buffers if this is a new sample barcode
         if not count.has_key(sample_id):
-            count[sample_id] = 0
-        count[sample_id] += 1
+            count[sample_id] = Counter()
+        count[sample_id][mol_bc] += 1
+
         total_count += 1
         if total_count % 5000000 == 0:
             logger.info("Processed %d counts in %.1f minutes." % (total_count, (time.time() - start) / 60))
@@ -147,45 +171,31 @@ def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir,
         if total_count % 1000000 == 0:
             logger.info("Processed %d reads in %.1f minutes." % (total_count, (time.time() - start) / 60))
         sample_id = get_sample_name(i1, i2, bar_dict)
-        if count[get_seq(i1, i2)] < min_reads:
+        sample_index = get_seq(i1, i2)
+        mol_bc, r1_seq, r2_seq = get_molecular_barcode(r1, r2, i1, i2)
+        if sum(count[sample_index].values()) < min_reads:
             # Write remaining buffered reads to a single fastq.
             # (These reads correspond to barcodes that were seen less than min_reads times)
-            if 'undetermined_r1' not in vars():
-                undetermined_r1 = open(os.path.join(out_dir, fname + 'undetermined.r1.fastq'), 'w')
-            if 'undetermined_r2' not in vars():
-                undetermined_r2 = open(os.path.join(out_dir, fname + 'undetermined.r2.fastq'), 'w')
-            if 'undetermined_i1' not in vars():
-                undetermined_i1 = open(os.path.join(out_dir, fname + 'undetermined.i1.fastq'), 'w')
-            if 'undetermined_i2' not in vars():
-                undetermined_i2 = open(os.path.join(out_dir, fname + 'undetermined.i2.fastq'), 'w')
-            for line in r1:
-                print(line, file=undetermined_r1, end="")
-            for line in r2:
-                print(line, file=undetermined_r2, end="")
-            for line in i1:
-                print(line, file=undetermined_i1, end="")
-            for line in i2:
-                print(line, file=undetermined_i2, end="")
-        else:
-            if sample_id not in outfiles_r1.keys():
-                outname = fname + sample_id
-                outfiles_r1[sample_id] = open(os.path.join(out_dir, '%s.r1.fastq' % outname), 'w')
-                outfiles_r2[sample_id] = open(os.path.join(out_dir, '%s.r2.fastq' % outname), 'w')
-                outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % outname), 'w')
-                outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % outname), 'w')
-            for line in r1:
-                print(line, file=outfiles_r1[sample_id], end="")
-            for line in r2:
-                print(line, file=outfiles_r2[sample_id], end="")
-            for line in i1:
-                print(line, file=outfiles_i1[sample_id], end="")
-            for line in i2:
-                print(line, file=outfiles_i2[sample_id], end="")
+            sample_id = 'undetermined'
+            mol_bc = 'molbc'
+        elif count[sample_index][mol_bc] < min_mol_bc:
+            mol_bc = 'molbc'
+        sample_id += '_{}'.format(mol_bc)
 
-    undetermined_r1.close()
-    undetermined_r2.close()
-    undetermined_i1.close()
-    undetermined_i2.close()
+        if sample_id not in outfiles_r1.keys():
+            outname = fname + sample_id
+            outfiles_r1[sample_id] = open(os.path.join(out_dir, '%s.r1.fastq' % outname), 'w')
+            outfiles_r2[sample_id] = open(os.path.join(out_dir, '%s.r2.fastq' % outname), 'w')
+            outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % outname), 'w')
+            outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % outname), 'w')
+        for line in r1:
+            print(line, file=outfiles_r1[sample_id], end="")
+        for line in r2:
+            print(line, file=outfiles_r2[sample_id], end="")
+        for line in i1:
+            print(line, file=outfiles_i1[sample_id], end="")
+        for line in i2:
+            print(line, file=outfiles_i2[sample_id], end="")
 
     for sample_id in outfiles_r1.keys():
         outfiles_r1[sample_id].close()
@@ -237,5 +247,5 @@ if __name__ == '__main__':
         # but follow the schema of containing _R1_
         for f in fargs:
             args[f] = swap[f]
-    demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['p5_barcodes'], args['p7_barcodes'], args['out_dir'], args['out_fname'],
-                min_reads=args['min_reads'])
+    demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['p5_barcodes'], args['p7_barcodes'],
+                args['out_dir'], args['out_fname'], min_reads=args['min_reads'])
