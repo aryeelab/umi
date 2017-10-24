@@ -45,6 +45,9 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir):
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
+    read1_out = os.path.join(out_dir, os.path.basename(read1_out))
+    read2_out = os.path.join(out_dir, os.path.basename(read2_out))
+
     r1_umitagged_unsorted_file = read1_out + '.tmp'
     r2_umitagged_unsorted_file = read2_out + '.tmp'
 
@@ -87,9 +90,9 @@ def main():
     parser.add_argument('--index2', required=True)
     parser.add_argument('--out_dir', default='.')
     args = vars(parser.parse_args())
-    out_dir = args['out_dir']
 
-    umitag(read1_in, read2_in, index1, index2, read1_out, read2_out, out_dir)
+    umitag(args['read1_in'], args['read2_in'], args['index1'], args['index2'],
+           args['read1_out'], args['read2_out'], args['out_dir'])
 
 if __name__ == '__main__':
     main()
