@@ -240,6 +240,7 @@ if __name__ == '__main__':
     parser.add_argument('--index1', required=True)
     parser.add_argument('--index2', required=True)
     parser.add_argument('--min_reads', type=int, default=10000)
+    parser.add_argument('--min_barcodes', type=int, default=100)
     parser.add_argument('--p5_barcodes')
     parser.add_argument('--p7_barcodes')
     parser.add_argument('--out_dir', default='.')
@@ -268,4 +269,5 @@ if __name__ == '__main__':
         for f in fargs:
             args[f] = swap[f]
     demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['p5_barcodes'], args['p7_barcodes'],
-                args['out_dir'], args['out_fname'], min_reads=args['min_reads'], stats_out=None)
+                args['out_dir'], args['out_fname'], min_reads=args['min_reads'], min_mol_bc=args['min_barcodes'],
+                stats_out=None)
