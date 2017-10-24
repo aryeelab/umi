@@ -1,8 +1,9 @@
 """
-test_demultiplex.py
+test_demult_ct.py
 -------------------------------
 
-Tests for the `demultiplex.py` module
+Tests for the `demult_ct.py` module for demultiplixing circulating tumor
+samples by sample name and barcode
 
 """
 
@@ -14,17 +15,19 @@ import utils
 
 # Include the parent directory in the PYTHONPATH for relative imports
 sys.path.append('..')
-import demultiplex
+import demult_ct as demultiplex
 
 
-TEST_SAMPLE_BARCODES = {'AGGCATGAGATCGC': 'mysample', 'GACTCCTGCGATAT': 'sample2'}
+P5_SAMPLE_BARCODES = {'GCGATAT': 'P51', 'AGATCGC': 'P52'}
+P7_SAMPLE_BARCODES = {'AGGCATG': 'P71', 'GACTCCT': 'P72'}
 TEST_DATA_FILES = {'read1': 'test/data/undemultiplexed/undemux.r1.fastq',
                   'read2': 'test/data/undemultiplexed/undemux.r2.fastq',
                   'index1': 'test/data/undemultiplexed/undemux.i1.fastq',
                   'index2': 'test/data/undemultiplexed/undemux.i2.fastq'}
 TEST_OUTPUT_PATH = 'output'
 TEST_MIN_READS = 1000
-CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'test/data/demultiplexed'
+CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'test/data/demult_ct'
+TEST_STATS = os.path.join(TEST_OUTPUT_PATH, 'stats.txt')
 
 class TestDemultiplex(unittest.TestCase):
 
@@ -40,9 +43,11 @@ class TestDemultiplex(unittest.TestCase):
                                 TEST_DATA_FILES['read2'],
                                 TEST_DATA_FILES['index1'],
                                 TEST_DATA_FILES['index2'],
-                                TEST_SAMPLE_BARCODES,
+                                P5_SAMPLE_BARCODES,
+                                P7_SAMPLE_BARCODES,
                                 TEST_OUTPUT_PATH,
-                                min_reads=TEST_MIN_READS)
+                                min_reads=TEST_MIN_READS,
+                                stats_out=TEST_STATS)
 
         self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_DEMULTIPLEX_OUTPUT_FOLDER))
 
