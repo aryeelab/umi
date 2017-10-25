@@ -138,13 +138,20 @@ def ct_to_dict(count):
     return ctd
 
 
-def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir, out_fname=None, min_reads=10000,
-                min_mol_bc=100, stats_out=None):
+def demultiplex(read1, read2, out_dir, index1=None, index2=None, p5_barcodes=None, p7_barcodes=None, out_fname=None,
+                min_reads=10000, min_mol_bc=100, stats_out=None):
     """ Demultiplex based on sample name and molecular barcode """
+    mode = 0  # 0 - demultiplex, 1 - molecular barcode only
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    bar_dict = [p5_barcodes, p7_barcodes] if isinstance(p5_barcodes, dict) else create_key(p5_barcodes, p7_barcodes)
+    if None not in [p5_barcodes, p7_barcodes]:
+        bar_dict = [p5_barcodes, p7_barcodes] if isinstance(p5_barcodes, dict) else create_key(p5_barcodes, p7_barcodes)
+    else:
+        logger.info('No p5 and p7 file provided.  Demultiplexing on molecular barcode only.')
+        index1 = read1  # placeholder
+        index2 = read2
+        mode = 1
 
     fname = ''
     if out_fname:
@@ -161,7 +168,7 @@ def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir,
     # Create count dictionary first
     start = time.time()
     for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
-        sample_id = get_seq(i1, i2)
+        sample_id = get_seq(i1, i2) if mode == 0 else os.path.basename(read1).split('.')[0]
         mol_bc, _, _ = get_molecular_barcode(r1, r2, i1, i2)
 
         # Increment read count and create output buffers if this is a new sample barcode
@@ -182,10 +189,10 @@ def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir,
         total_count += 1
         if total_count % 1000000 == 0:
             logger.info("Processed %d reads in %.1f minutes." % (total_count, (time.time() - start) / 60))
-        sample_id = get_sample_name(i1, i2, bar_dict)
-        sample_index = get_seq(i1, i2)
+        sample_index = get_seq(i1, i2) if mode == 0 else os.path.basename(read1).split('.')[0]
+        sample_id = get_sample_name(i1, i2, bar_dict) if mode == 0 else sample_index
         mol_bc, r1_seq, r2_seq = get_molecular_barcode(r1, r2, i1, i2)
-        if sum(count[sample_index].values()) < min_reads:
+        if sum(count[sample_index].values()) < min_reads and mode == 0:
             # Write remaining buffered reads to a single fastq.
             # (These reads correspond to barcodes that were seen less than min_reads times)
             sample_id = 'undetermined'
@@ -198,25 +205,28 @@ def demultiplex(read1, read2, index1, index2, p5_barcodes, p7_barcodes, out_dir,
             outname = fname + sample_id
             outfiles_r1[sample_id] = open(os.path.join(out_dir, '%s.r1.fastq' % outname), 'w')
             outfiles_r2[sample_id] = open(os.path.join(out_dir, '%s.r2.fastq' % outname), 'w')
-            outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % outname), 'w')
-            outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % outname), 'w')
+            if mode == 0:
+                outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % outname), 'w')
+                outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % outname), 'w')
         for line in r1:
             print(line, file=outfiles_r1[sample_id], end="")
         for line in r2:
             print(line, file=outfiles_r2[sample_id], end="")
-        for line in i1:
-            print(line, file=outfiles_i1[sample_id], end="")
-        for line in i2:
-            print(line, file=outfiles_i2[sample_id], end="")
+        if mode == 0:
+            for line in i1:
+                print(line, file=outfiles_i1[sample_id], end="")
+            for line in i2:
+                print(line, file=outfiles_i2[sample_id], end="")
 
     for sample_id in outfiles_r1.keys():
         outfiles_r1[sample_id].close()
     for sample_id in outfiles_r2.keys():
         outfiles_r2[sample_id].close()
-    for sample_id in outfiles_i1.keys():
-        outfiles_i1[sample_id].close()
-    for sample_id in outfiles_i2.keys():
-        outfiles_i2[sample_id].close()
+    if mode == 0:
+        for sample_id in outfiles_i1.keys():
+            outfiles_i1[sample_id].close()
+        for sample_id in outfiles_i2.keys():
+            outfiles_i2[sample_id].close()
 
     num_fastqs = len([v for k, v in count.iteritems() if sum(v.values()) >= min_reads])
     logger.info('Wrote FASTQs for the %d sample barcodes out of %d with at least %d reads in %.1f minutes.' % (
@@ -237,8 +247,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--read1', required=True)
     parser.add_argument('--read2', required=True)
-    parser.add_argument('--index1', required=True)
-    parser.add_argument('--index2', required=True)
+    parser.add_argument('--index1')  # if not provided split by molecular barcode and not sample id
+    parser.add_argument('--index2')
     parser.add_argument('--min_reads', type=int, default=10000)
     parser.add_argument('--min_barcodes', type=int, default=100)
     parser.add_argument('--p5_barcodes')
@@ -268,6 +278,6 @@ if __name__ == '__main__':
         # but follow the schema of containing _R1_
         for f in fargs:
             args[f] = swap[f]
-    demultiplex(args['read1'], args['read2'], args['index1'], args['index2'], args['p5_barcodes'], args['p7_barcodes'],
-                args['out_dir'], args['out_fname'], min_reads=args['min_reads'], min_mol_bc=args['min_barcodes'],
+    demultiplex(args['read1'], args['read2'], args['out_dir'], args['index1'], args['index2'], args['p5_barcodes'],
+                args['p7_barcodes'], args['out_fname'], min_reads=args['min_reads'], min_mol_bc=args['min_barcodes'],
                 stats_out=None)
