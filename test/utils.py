@@ -4,7 +4,7 @@ import inspect
 import filecmp
 from itertools import islice
 
-def checkFolderEquality(folder1, folder2):
+def checkFolderEquality(folder1, folder2, partial=False):
     """
     Given two folders, check if there are the same number of files,
     that the names of files are the same, and that the files with the same
@@ -14,7 +14,7 @@ def checkFolderEquality(folder1, folder2):
     folder1_files = [x for x in os.listdir(folder1) if not x.startswith('.')]
     folder2_files = [x for x in os.listdir(folder2) if not x.startswith('.')]
 
-    if set(folder1_files) != set(folder2_files):
+    if set(folder1_files) != set(folder2_files) and not partial:
         print 'Folders do not have the same filenames.'
         return False
 
