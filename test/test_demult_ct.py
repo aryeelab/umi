@@ -30,7 +30,6 @@ TEST_DATA_FILES = {'read1': 'test/data/undemultiplexed/undemux.r1.fastq',
 TEST_OUTPUT_PATH = 'output'
 TEST_MIN_READS = 1000
 CORRECT_DEMULTIPLEX_OUTPUT_FOLDER = 'test/data/demult_ct'
-CORRECT_MOLBC_OUTPUT_FOLDER = 'test/data/demult_ct'
 TEST_STATS = os.path.join(TEST_OUTPUT_PATH, 'stats.txt')
 
 class TestDemultiplex(unittest.TestCase):
@@ -62,7 +61,7 @@ class TestDemultiplex(unittest.TestCase):
                                 TEST_OUTPUT_PATH,
                                 min_reads=TEST_MIN_READS)
 
-        self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_MOLBC_OUTPUT_FOLDER, partial=True))
+        self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_DEMULTIPLEX_OUTPUT_FOLDER, partial=True))
 
 
     def tearDown(self):
