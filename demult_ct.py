@@ -138,10 +138,80 @@ def ct_to_dict(count):
     return ctd
 
 
+def write_files(read1, read2, index1, index2, bar_dict, count, mode, min_reads, min_mol_bc, out_dir, fname, start,
+                name_filter):
+    outfiles_r1 = {}
+    outfiles_r2 = {}
+    outfiles_i1 = {}
+    outfiles_i2 = {}
+    total_count = 0
+    include_undetermined = True if name_filter[-1] == 'undetermined' else False
+    for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
+        # the original demultiplex stored sequences in a buffer to execute in 1N instead of 2N
+        # this version minimizes the memory requirement by running in 2N
+        total_count += 1
+        if total_count % 1000000 == 0:
+            logger.info("Processed %d reads in %.1f minutes." % (total_count, (time.time() - start) / 60))
+        sample_index = get_seq(i1, i2) if mode == 0 else os.path.basename(read1).split('.')[0]
+        sample_id = get_sample_name(i1, i2, bar_dict) if mode == 0 else sample_index
+        mol_bc, r1_seq, r2_seq = get_molecular_barcode(r1, r2, i1, i2)
+        if sum(count[sample_index].values()) < min_reads and mode == 0:
+            # Write remaining buffered reads to a single fastq.
+            # (These reads correspond to barcodes that were seen less than min_reads times)
+            sample_id = 'undetermined'
+            mol_bc = 'molbc'
+        elif count[sample_index][mol_bc] < min_mol_bc:
+            mol_bc = 'molbc'
+        sample_id += '_{}'.format(mol_bc)
+
+        if '{}_{}'.format(sample_index, mol_bc) in name_filter or ('molbc' == mol_bc and include_undetermined):
+            if sample_id not in outfiles_r1.keys():
+                outname = fname + sample_id
+                outfiles_r1[sample_id] = open(os.path.join(out_dir, '%s.r1.fastq' % outname), 'w')
+                outfiles_r2[sample_id] = open(os.path.join(out_dir, '%s.r2.fastq' % outname), 'w')
+                if mode == 0:
+                    outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % outname), 'w')
+                    outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % outname), 'w')
+            for line in r1:
+                print(line, file=outfiles_r1[sample_id], end="")
+            for line in r2:
+                print(line, file=outfiles_r2[sample_id], end="")
+            if mode == 0:
+                for line in i1:
+                    print(line, file=outfiles_i1[sample_id], end="")
+                for line in i2:
+                    print(line, file=outfiles_i2[sample_id], end="")
+
+    for sample_id in outfiles_r1.keys():
+        outfiles_r1[sample_id].close()
+    for sample_id in outfiles_r2.keys():
+        outfiles_r2[sample_id].close()
+    if mode == 0:
+        for sample_id in outfiles_i1.keys():
+            outfiles_i1[sample_id].close()
+        for sample_id in outfiles_i2.keys():
+            outfiles_i2[sample_id].close()
+
+
+def split_outputs(names, max_names, start=0):
+    """ Split list of names to avoid too many open files """
+    return names[start:start + max_names]
+
+
+def get_all_names(count):
+    """Return array of all sample ids in count dictionary"""
+    names = []
+    for sample_id in count:
+        for mol_bc in count[sample_id]:
+            names.append('{}_{}'.format(sample_id, mol_bc))
+    return names
+
+
 def demultiplex(read1, read2, out_dir, index1=None, index2=None, p5_barcodes=None, p7_barcodes=None, out_fname=None,
                 min_reads=10000, min_mol_bc=100, stats_out=None):
     """ Demultiplex based on sample name and molecular barcode """
     mode = 0  # 0 - demultiplex, 1 - molecular barcode only
+    bar_dict = None
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -157,10 +227,6 @@ def demultiplex(read1, read2, out_dir, index1=None, index2=None, p5_barcodes=Non
     if out_fname:
         fname = args['out_fname'] + '_'
 
-    outfiles_r1 = {}
-    outfiles_r2 = {}
-    outfiles_i1 = {}
-    outfiles_i2 = {}
 
     total_count = 0
     count = {}
@@ -182,62 +248,31 @@ def demultiplex(read1, read2, out_dir, index1=None, index2=None, p5_barcodes=Non
 
     logger.info("Read count complete in %.1f minutes." % ((time.time() - start) / 60))
 
-    total_count = 0
-    for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
-        # the original demultiplex stored sequences in a buffer to execute in 1N instead of 2N
-        # this version minimizes the memory requirement by running in 2N
-        total_count += 1
-        if total_count % 1000000 == 0:
-            logger.info("Processed %d reads in %.1f minutes." % (total_count, (time.time() - start) / 60))
-        sample_index = get_seq(i1, i2) if mode == 0 else os.path.basename(read1).split('.')[0]
-        sample_id = get_sample_name(i1, i2, bar_dict) if mode == 0 else sample_index
-        mol_bc, r1_seq, r2_seq = get_molecular_barcode(r1, r2, i1, i2)
-        if sum(count[sample_index].values()) < min_reads and mode == 0:
-            # Write remaining buffered reads to a single fastq.
-            # (These reads correspond to barcodes that were seen less than min_reads times)
-            sample_id = 'undetermined'
-            mol_bc = 'molbc'
-        elif count[sample_index][mol_bc] < min_mol_bc:
-            mol_bc = 'molbc'
-        sample_id += '_{}'.format(mol_bc)
+    if stats_out:
+        df = pd.DataFrame(ct_to_dict(count))
+        made_cut = pd.DataFrame(df.groupby('sample')['count'].sum() >= min_reads)
+        mdf = pd.merge(df, made_cut, left_on='sample', right_index=True, suffixes=['', '_sample_pass'])
+        mdf['molecular_bc_passed'] = mdf['count'] >= min_mol_bc
+        mdf['written'] = (mdf['count_sample_pass'] & mdf['molecular_bc_passed']) if mode == 0 else mdf['molecular_bc_passed']
+        mdf.to_csv(stats_out, sep='\t', index=False)
+        logger.info('Statistics written to %s', stats_out)
 
-        if sample_id not in outfiles_r1.keys():
-            outname = fname + sample_id
-            outfiles_r1[sample_id] = open(os.path.join(out_dir, '%s.r1.fastq' % outname), 'w')
-            outfiles_r2[sample_id] = open(os.path.join(out_dir, '%s.r2.fastq' % outname), 'w')
-            if mode == 0:
-                outfiles_i1[sample_id] = open(os.path.join(out_dir, '%s.i1.fastq' % outname), 'w')
-                outfiles_i2[sample_id] = open(os.path.join(out_dir, '%s.i2.fastq' % outname), 'w')
-        for line in r1:
-            print(line, file=outfiles_r1[sample_id], end="")
-        for line in r2:
-            print(line, file=outfiles_r2[sample_id], end="")
-        if mode == 0:
-            for line in i1:
-                print(line, file=outfiles_i1[sample_id], end="")
-            for line in i2:
-                print(line, file=outfiles_i2[sample_id], end="")
-
-    for sample_id in outfiles_r1.keys():
-        outfiles_r1[sample_id].close()
-    for sample_id in outfiles_r2.keys():
-        outfiles_r2[sample_id].close()
-    if mode == 0:
-        for sample_id in outfiles_i1.keys():
-            outfiles_i1[sample_id].close()
-        for sample_id in outfiles_i2.keys():
-            outfiles_i2[sample_id].close()
+    max_names = 4000  # Avoid errors related to having too many files open at once.
+    pos = 0
+    names = get_all_names(count)
+    while pos < len(names):
+        if pos + max_names >= len(names):
+            max_names = len(names)
+            names.append('undetermined')
+        name_filter = split_outputs(names, max_names, pos)
+        logger.info('Writing %d of %d names', max_names, len(names))
+        write_files(read1, read2, index1, index2, bar_dict, count, mode, min_reads, min_mol_bc, out_dir, fname, start,
+                    name_filter)
+        pos += max_names
 
     num_fastqs = len([v for k, v in count.iteritems() if sum(v.values()) >= min_reads])
     logger.info('Wrote FASTQs for the %d sample barcodes out of %d with at least %d reads in %.1f minutes.' % (
     num_fastqs, len(count), min_reads, (time.time() - start) / 60))
-    if stats_out:
-        df = pd.DataFrame(ct_to_dict(count))
-        made_cut = pd.DataFrame(df.groupby('sample')['count'].sum() > min_reads)
-        mdf = pd.merge(df, made_cut, left_on='sample', right_index=True, suffixes=['', '_sample_pass'])
-        mdf['molecular_bc_passed'] = mdf['count'] > min_mol_bc
-        mdf['written'] = mdf['count_sample_pass'] & mdf['molecular_bc_passed']
-        mdf.to_csv(stats_out, sep='\t', index=False)
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -262,7 +297,9 @@ if __name__ == '__main__':
     fargs = ['read1', 'read2', 'index1', 'index2']
     for f in fargs:
         name = args[f]
-        if name.find('_R1_') > 0:
+        if not name:
+            pass
+        elif name.find('_R1_') > 0:
             swap['read1'] = name
         elif name.find('_R2_') > 0:
             swap['read2'] = name
@@ -280,4 +317,4 @@ if __name__ == '__main__':
             args[f] = swap[f]
     demultiplex(args['read1'], args['read2'], args['out_dir'], args['index1'], args['index2'], args['p5_barcodes'],
                 args['p7_barcodes'], args['out_fname'], min_reads=args['min_reads'], min_mol_bc=args['min_barcodes'],
-                stats_out=None)
+                stats_out=args['stats_out'])
