@@ -11,14 +11,8 @@ import pandas as pd
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 
-# Edited Martin Aryee's function to demultiplex to reduce
-# the amount of memory required to run.
-# Demultiplex based on sample ID and molecular barcode
-# for increased granularity when processing cell free
-# tumor dna.
-# Martin's original demultiplex function can be found
-# here:
-# https://github.com/aryeelab/umi/wiki
+# This is pointless.  No one would ever split these reads
+# into separate files.  It creates way too many files.
 #
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -198,12 +192,11 @@ def split_outputs(names, max_names, start=0):
     return names[start:start + max_names]
 
 
-def get_all_names(count):
+def get_all_names(df):
     """Return array of all sample ids in count dictionary"""
     names = []
-    for sample_id in count:
-        for mol_bc in count[sample_id]:
-            names.append('{}_{}'.format(sample_id, mol_bc))
+    for _, row in df.iterrows():
+        names.append('{}_{}'.format(row['sample'], row['molecular_barcode']))
     return names
 
 
@@ -248,22 +241,23 @@ def demultiplex(read1, read2, out_dir, index1=None, index2=None, p5_barcodes=Non
 
     logger.info("Read count complete in %.1f minutes." % ((time.time() - start) / 60))
 
+    df = pd.DataFrame(ct_to_dict(count))
+    made_cut = pd.DataFrame(df.groupby('sample')['count'].sum() >= min_reads)
+    mdf = pd.merge(df, made_cut, left_on='sample', right_index=True, suffixes=['', '_sample_pass'])
+    mdf['molecular_bc_passed'] = mdf['count'] >= min_mol_bc
+    mdf['written'] = (mdf['count_sample_pass'] & mdf['molecular_bc_passed']) if mode == 0 else mdf[
+        'molecular_bc_passed']
     if stats_out:
-        df = pd.DataFrame(ct_to_dict(count))
-        made_cut = pd.DataFrame(df.groupby('sample')['count'].sum() >= min_reads)
-        mdf = pd.merge(df, made_cut, left_on='sample', right_index=True, suffixes=['', '_sample_pass'])
-        mdf['molecular_bc_passed'] = mdf['count'] >= min_mol_bc
-        mdf['written'] = (mdf['count_sample_pass'] & mdf['molecular_bc_passed']) if mode == 0 else mdf['molecular_bc_passed']
         mdf.to_csv(stats_out, sep='\t', index=False)
         logger.info('Statistics written to %s', stats_out)
 
     max_names = 4000  # Avoid errors related to having too many files open at once.
     pos = 0
-    names = get_all_names(count)
+    names = get_all_names(mdf[mdf['written']])
     while pos < len(names):
         if pos + max_names >= len(names):
-            max_names = len(names)
             names.append('undetermined')
+            max_names = len(names)
         name_filter = split_outputs(names, max_names, pos)
         logger.info('Writing %d of %d names', max_names, len(names))
         write_files(read1, read2, index1, index2, bar_dict, count, mode, min_reads, min_mol_bc, out_dir, fname, start,
