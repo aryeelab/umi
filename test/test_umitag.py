@@ -29,18 +29,20 @@ class TestUMITag(unittest.TestCase):
 
     def setUp(self):
         # Create the output folder
-        os.makedirs(TEST_OUTPUT_PATH)
+        if not os.path.exists(TEST_OUTPUT_PATH):
+            os.makedirs(TEST_OUTPUT_PATH)
 
 
     def testUMITagTestCase(self):
         # Run the umitag module on the test data
+        print(os.getcwd())
         umitag.umitag(TEST_DATA_FILES['read1'],
                                 TEST_DATA_FILES['read2'],
                                 TEST_DATA_FILES['index1'],
                                 TEST_DATA_FILES['index2'],
                                 TEST_DATA_FILES['read1_out'],
                                 TEST_DATA_FILES['read2_out'],
-                                TEST_OUTPUT_PATH)
+                                TEST_OUTPUT_PATH, '8B12H,,,')
 
         self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_UMITAGGED_OUTPUT_FOLDER))
 
