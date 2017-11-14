@@ -100,7 +100,7 @@ def get_numlines(fpath):
             ct += 1
     return ct
 
-def merge_output(res):
+def merge_output(res, num_procs):
     r1_umitagged_unsorted_file = None
     r2_umitagged_unsorted_file = None
     for r1, r2 in res:
@@ -108,8 +108,14 @@ def merge_output(res):
             r1_umitagged_unsorted_file = r1
             r2_umitagged_unsorted_file = r2
         else:
-            os.system('cat {} >> {}'.format(r1, r1_umitagged_unsorted_file))
-            os.system('cat {} >> {}'.format(r2, r2_umitagged_unsorted_file))
+            cmds = ['cat {} >> {}'.format(r1, r1_umitagged_unsorted_file),
+                    'cat {} >> {}'.format(r2, r2_umitagged_unsorted_file)]
+            if num_procs > 1:
+                pool = mp.Pool(processes=2)
+                _ = [pool.apply(os.system, args=(arg)) for arg in []]
+            else:
+                os.system(cmds[0])
+                os.system(cmds[1])
     return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
 
 
@@ -133,12 +139,16 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern,
     chunk_size += (4 - diff)
     pool = mp.Pool(processes=num_procs)
     res = [pool.apply(process_fq, args=(read1_out, read2_out, read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
-    r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(res)
+    r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(res, num_procs)
     # Sort fastqs based on molecular barcode
-    cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read1_out
-    subprocess.check_call(cmd, shell=True, env=os.environ.copy())
-    cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read2_out
-    subprocess.check_call(cmd, shell=True, env=os.environ.copy())
+    cmd1 = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read1_out
+    cmd2 = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read2_out
+    if num_procs > 1:
+        pool = mp.Pool(processes=2)
+        _ = [pool.apply(subprocess.check_call, args=(cmd, ), kwds=dict(shell=True, env=os.environ.copy())) for cmd in [cmd1, cmd2]]
+    else:
+        subprocess.check_call(cmd1, shell=True, env=os.environ.copy())
+        subprocess.check_call(cmd2, shell=True, env=os.environ.copy())
 
     tmp_files = glob.glob(os.path.join(os.path.dirname(r1_umitagged_unsorted_file), '*.tmp'))
     for tmp_file in tmp_files:
