@@ -163,7 +163,7 @@ def main():
         print('Index files are required when pattern is defined to use indexes!')
 
     umitag(args['read1_in'], args['read2_in'], args['index1'], args['index2'],
-           args['read1_out'], args['read2_out'], args['out_dir'], args['pattern'], args['threads'])
+           args['read1_out'], args['read2_out'], args['out_dir'], args['pattern'], int(args['threads']))
 
 if __name__ == '__main__':
     main()
