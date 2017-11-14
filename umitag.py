@@ -5,8 +5,10 @@ import gzip
 import itertools
 import argparse
 import subprocess
+import multiprocessing as mp
+import glob
 
-__author__ = 'Martin Aryee'
+__author__ = 'Martin Aryee, Allison MacLeay'
 
 # python ~/work/projects/umi/umitag.py --read1_in bcl/Undetermined_S0_L001_R1_001.fastq.gz --read2_in bcl/Undetermined_S0_L001_R2_001.fastq.gz --read1_out umi1.fastq.gz --read2_out umi2.fastq.gz --index1 bcl/Undetermined_S0_L001_I1_001.fastq.gz --index2 bcl/Undetermined_S0_L001_I2_001.fastq.gz
 
@@ -19,13 +21,18 @@ __author__ = 'Martin Aryee'
 # args['index1'] = os.path.join(base, 'Undetermined_S0_L001_I1_001.fastq.gz')
 # args['index2'] = os.path.join(base, 'Undetermined_S0_L001_I2_001.fastq.gz')
 
-def fq(file):
+
+def fq(file, start, stop):
     if re.search('.gz$', file):
         fastq = gzip.open(file, 'rb')
     else:
         fastq = open(file, 'r')
+    ct = start / 4
     with fastq as f:
-        while True:
+        for _ in range(start):
+            f.readline()
+        while (ct * 4) < stop - 1:
+            ct += 1
             l1 = f.readline()
             if not l1:
                 break
@@ -33,6 +40,7 @@ def fq(file):
             l3 = f.readline()
             l4 = f.readline()
             yield [l1, l2, l3, l4]
+
 
 def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12X,,,'):
     """ Return molecular barcode and processed R1 and R2
@@ -62,27 +70,14 @@ def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12X,,,'):
     return barcode, r1_out, r2_out, q1_out, q2_out
 
 
-def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern):
-
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
-    read1_out = os.path.join(out_dir, os.path.basename(read1_out))
-    read2_out = os.path.join(out_dir, os.path.basename(read2_out))
-
-    r1_umitagged_unsorted_file = read1_out + '.tmp'
-    r2_umitagged_unsorted_file = read2_out + '.tmp'
+def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, start, stop):
+    r1_umitagged_unsorted_file = '{}_{}.tmp'.format(read1_out, start)
+    r2_umitagged_unsorted_file = '{}_{}.tmp'.format(read2_out, start)
 
     # Create UMI-tagged R1 and R2 FASTQs
     r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
     r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
-
-    if not index1:  # placeholder
-        index1 = read1
-    if not index2:  # placeholder
-        index2 = read2
-
-    for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
+    for r1, r2, i1, i2 in itertools.izip(fq(read1, start, stop), fq(read2, start, stop), fq(index1, start, stop), fq(index2, start, stop)):
         # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
         molecular_id, r1[1], r2[1], r1[3], r2[3] = get_molecular_barcode(r1, r2, i1, i2, pattern)
         # Add molecular id to read headers
@@ -96,16 +91,58 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern)
             r2_umitagged.write(line)
     r1_umitagged.close()
     r2_umitagged.close()
+    return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
 
+def get_numlines(fpath):
+    ct = 0
+    with open(fpath, 'rb') as fh:
+        for _ in fh:
+            ct += 1
+    return ct
+
+def merge_output(res):
+    r1_umitagged_unsorted_file = None
+    r2_umitagged_unsorted_file = None
+    for r1, r2 in res:
+        if r1_umitagged_unsorted_file is None:
+            r1_umitagged_unsorted_file = r1
+            r2_umitagged_unsorted_file = r2
+        else:
+            os.system('cat {} >> {}'.format(r1, r1_umitagged_unsorted_file))
+            os.system('cat {} >> {}'.format(r2, r2_umitagged_unsorted_file))
+    return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
+
+
+def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern, num_procs):
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    read1_out = os.path.join(out_dir, os.path.basename(read1_out))
+    read2_out = os.path.join(out_dir, os.path.basename(read2_out))
+
+    if not index1:  # placeholder
+        index1 = read1
+    if not index2:  # placeholder
+        index2 = read2
+    num_lines = get_numlines(index1)
+    chunk_size = num_lines / num_procs
+    if num_lines % num_procs != 0:  # math.ceil()
+        chunk_size += 1
+    diff = chunk_size % 4
+    chunk_size += (4 - diff)
+    pool = mp.Pool(processes=num_procs)
+    res = [pool.apply(process_fq, args=(read1_out, read2_out, read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
+    r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(res)
     # Sort fastqs based on molecular barcode
     cmd = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read1_out
     subprocess.check_call(cmd, shell=True, env=os.environ.copy())
     cmd = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read2_out
     subprocess.check_call(cmd, shell=True, env=os.environ.copy())
 
-
-    os.remove(r1_umitagged_unsorted_file)
-    os.remove(r2_umitagged_unsorted_file)
+    tmp_files = glob.glob(os.path.join(os.path.dirname(r1_umitagged_unsorted_file), '*.tmp'))
+    for tmp_file in tmp_files:
+        os.remove(tmp_file)
 
 
 def main():
@@ -118,6 +155,7 @@ def main():
     parser.add_argument('--index2')
     parser.add_argument('--pattern', default='8B12X,,,')
     parser.add_argument('--out_dir', default='.')
+    parser.add_argument('--threads', default=1)
     args = vars(parser.parse_args())
 
     r1_pat, r2_pat, i1_pat, i2_pat = args['pattern'].split(',')
@@ -125,7 +163,7 @@ def main():
         print('Index files are required when pattern is defined to use indexes!')
 
     umitag(args['read1_in'], args['read2_in'], args['index1'], args['index2'],
-           args['read1_out'], args['read2_out'], args['out_dir'], args['pattern'])
+           args['read1_out'], args['read2_out'], args['out_dir'], args['pattern'], args['threads'])
 
 if __name__ == '__main__':
     main()

@@ -42,7 +42,7 @@ class TestUMITag(unittest.TestCase):
                                 TEST_DATA_FILES['index2'],
                                 TEST_DATA_FILES['read1_out'],
                                 TEST_DATA_FILES['read2_out'],
-                                TEST_OUTPUT_PATH, '8B12H,,,')
+                                TEST_OUTPUT_PATH, '8B12H,,,', 7)
 
         self.assertTrue(utils.checkFolderEquality(TEST_OUTPUT_PATH, CORRECT_UMITAGGED_OUTPUT_FOLDER))
 
