@@ -144,8 +144,8 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern,
     res = [pool.apply_async(process_fq, args=(read1_out, read2_out, read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
     r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(res, num_procs)
     # Sort fastqs based on molecular barcode
-    cmd1 = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read1_out
-    cmd2 = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k3,3 -k1,1 | tr "\t" "\n" >' + read2_out
+    cmd1 = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k1,1 | tr "\t" "\n" >' + read1_out
+    cmd2 = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k1,1 | tr "\t" "\n" >' + read2_out
     if num_procs > 1:
         pool = mp.Pool(processes=2)
         procs = [pool.apply_async(subprocess.check_call, args=(cmd, ), kwds=dict(shell=True, env=os.environ.copy())) for cmd in [cmd1, cmd2]]
