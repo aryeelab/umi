@@ -69,6 +69,15 @@ def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12X,,,'):
             q2_out = read[3][pos:]
     return barcode, r1_out, r2_out, q1_out, q2_out
 
+def tag_query_name(query_name, molecular_id):
+    space = query_name.split(' ')
+    pts = space[0].split(':')
+    pts[2] = '{}_{}'.format(pts[2], molecular_id)
+    query_name = '{}\n'.format(':'.join(pts))
+    if len(space) > 1:
+        query_name = '{} {}'.format(query_name.replace('\n', ''), ' '.join(space[1:]))
+    return query_name
+
 
 def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, start, stop):
     r1_umitagged_unsorted_file = '{}_{}.tmp'.format(read1_out, start)
@@ -81,10 +90,8 @@ def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, star
         # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
         molecular_id, r1[1], r2[1], r1[3], r2[3] = get_molecular_barcode(r1, r2, i1, i2, pattern)
         # Add molecular id to read headers
-        r1[0] = '%s %s\n' % (r1[0].rstrip(), molecular_id)
-        r2[0] = '%s %s\n' % (r2[0].rstrip(), molecular_id)
-        r1[0] = r1[0].replace(' ', ':')
-        r2[0] = r2[0].replace(' ', ':')
+        r1[0] = tag_query_name(r1[0], molecular_id)
+        r2[0] = tag_query_name(r2[0], molecular_id)
         for line in r1:
             r1_umitagged.write(line)
         for line in r2:
@@ -122,6 +129,12 @@ def merge_output(res, num_procs):
     return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
 
 
+def get_sort_opts():
+    version = float(subprocess.check_output('sort --version', shell=True).split('\n')[0].split(' ')[-1])
+    if version > 5.93:
+        return ' -V '
+    return ''
+
 def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern, num_procs):
 
     if not os.path.exists(out_dir):
@@ -144,8 +157,11 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern,
     res = [pool.apply_async(process_fq, args=(read1_out, read2_out, read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
     r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(res, num_procs)
     # Sort fastqs based on molecular barcode
-    cmd1 = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k1,1 -V | tr "\t" "\n" >' + read1_out
-    cmd2 = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k1,1 -V | tr "\t" "\n" >' + read2_out
+    sort_opts = get_sort_opts()
+    cmd1 = 'cat {} | paste - - - - | sort -k1,1 {} | tr "\t" "\n" > {}'.format(r1_umitagged_unsorted_file, sort_opts,
+                                                                               read1_out)
+    cmd2 = 'cat {} | paste - - - - | sort -k1,1 {} | tr "\t" "\n" > {}'.format(r2_umitagged_unsorted_file, sort_opts,
+                                                                               read2_out)
     if num_procs > 1:
         pool = mp.Pool(processes=2)
         procs = [pool.apply_async(subprocess.check_call, args=(cmd, ), kwds=dict(shell=True, env=os.environ.copy())) for cmd in [cmd1, cmd2]]
