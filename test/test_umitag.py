@@ -31,6 +31,9 @@ class TestUMITag(unittest.TestCase):
         # Create the output folder
         if not os.path.exists(TEST_OUTPUT_PATH):
             os.makedirs(TEST_OUTPUT_PATH)
+        with open(os.path.join(TEST_OUTPUT_PATH, 'diffsample.r1.umitagged.fastq'), 'w') as fh:
+            fh.write(' ')
+
 
 
     def testUMITagTestCase(self):
