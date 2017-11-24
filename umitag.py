@@ -23,23 +23,26 @@ __author__ = 'Martin Aryee, Allison MacLeay'
 
 
 def fq(file, start, stop):
-    if re.search('.gz$', file):
-        fastq = gzip.open(file, 'rb')
-    else:
-        fastq = open(file, 'r')
-    ct = start / 4
-    with fastq as f:
-        for _ in range(start):
-            f.readline()
-        while (ct * 4) < stop - 1:
-            ct += 1
-            l1 = f.readline()
-            if not l1:
-                break
-            l2 = f.readline()
-            l3 = f.readline()
-            l4 = f.readline()
-            yield [l1, l2, l3, l4]
+    try:
+        if re.search('.gz$', file):
+            fastq = gzip.open(file, 'rb')
+        else:
+            fastq = open(file, 'r')
+        ct = start / 4
+        with fastq as f:
+            for _ in range(start):
+                f.readline()
+            while (ct * 4) < stop - 1:
+                ct += 1
+                l1 = f.readline()
+                if not l1:
+                    break
+                l2 = f.readline()
+                l3 = f.readline()
+                l4 = f.readline()
+                yield [l1, l2, l3, l4]
+    finally:
+        fastq.close()
 
 
 def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12X,,,'):
@@ -70,6 +73,16 @@ def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12X,,,'):
     return barcode, r1_out, r2_out, q1_out, q2_out
 
 
+def tag_query_name(query_name, molecular_id):
+    space = query_name.split(' ')
+    pts = space[0].split(':')
+    pts[2] = '{}_{}'.format(pts[2], molecular_id)
+    query_name = '{}\n'.format(':'.join(pts))
+    if len(space) > 1:
+        query_name = '{} {}'.format(query_name.replace('\n', ''), ' '.join(space[1:]))
+    return query_name
+
+
 def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, start, stop):
     r1_umitagged_unsorted_file = '{}_{}.tmp'.format(read1_out, start)
     r2_umitagged_unsorted_file = '{}_{}.tmp'.format(read2_out, start)
@@ -77,21 +90,25 @@ def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, star
     # Create UMI-tagged R1 and R2 FASTQs
     r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
     r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
-    for r1, r2, i1, i2 in itertools.izip(fq(read1, start, stop), fq(read2, start, stop), fq(index1, start, stop), fq(index2, start, stop)):
-        # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
-        molecular_id, r1[1], r2[1], r1[3], r2[3] = get_molecular_barcode(r1, r2, i1, i2, pattern)
-        # Add molecular id to read headers
-        r1[0] = '%s %s\n' % (r1[0].rstrip(), molecular_id)
-        r2[0] = '%s %s\n' % (r2[0].rstrip(), molecular_id)
-        r1[0] = r1[0].replace(' ', ':')
-        r2[0] = r2[0].replace(' ', ':')
-        for line in r1:
-            r1_umitagged.write(line)
-        for line in r2:
-            r2_umitagged.write(line)
-    r1_umitagged.close()
-    r2_umitagged.close()
+    try:
+        for r1, r2, i1, i2 in itertools.izip(fq(read1, start, stop), fq(read2, start, stop), fq(index1, start, stop), fq(index2, start, stop)):
+            # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
+            molecular_id, r1[1], r2[1], r1[3], r2[3] = get_molecular_barcode(r1, r2, i1, i2, pattern)
+            # Add molecular id to read headers
+            r1[0] = tag_query_name(r1[0], molecular_id)
+            r2[0] = tag_query_name(r2[0], molecular_id)
+            for line in r1:
+                r1_umitagged.write(line)
+            for line in r2:
+                r2_umitagged.write(line)
+    except Exception as e:
+        print(e)
+        raise e
+    finally:
+        r1_umitagged.close()
+        r2_umitagged.close()
     return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
+
 
 def get_numlines(fpath):
     ct = 0
@@ -100,26 +117,56 @@ def get_numlines(fpath):
             ct += 1
     return ct
 
+
+def concat(partial_file, aggregate_file):
+    for rfile in [partial_file, aggregate_file]:
+        if not os.path.exists(rfile):
+            raise ValueError('%s does not exist', rfile)
+    with open(aggregate_file, 'a') as tofile:
+        with open(partial_file, 'rb') as pfile:
+            tofile.writelines(pfile.readlines())
+
+
+def sort_fastqs(r_umitagged_unsorted_file, sort_opts, read_out):
+    """ sort by query name.
+        https://edwards.sdsu.edu/research/sorting-fastq-files-by-their-sequence-identifiers/
+    """
+    cmd = 'cat {} | paste - - - - | sort -k1,1 {} | tr "\t" "\n" > {}'.format(r_umitagged_unsorted_file, sort_opts,
+                                                                              read_out)
+    sort_output = subprocess.check_output(cmd, shell=True, env=os.environ.copy())
+    return sort_output
+
+
 def merge_output(res, num_procs):
     r1_umitagged_unsorted_file = None
     r2_umitagged_unsorted_file = None
-    for r in res:
-        r1, r2 = r.get()
+    for r1, r2 in res:
         if r1_umitagged_unsorted_file is None:
             r1_umitagged_unsorted_file = r1
             r2_umitagged_unsorted_file = r2
         else:
-            cmds = ['cat {} >> {}'.format(r1, r1_umitagged_unsorted_file),
-                    'cat {} >> {}'.format(r2, r2_umitagged_unsorted_file)]
+            args = [(r1, r1_umitagged_unsorted_file), (r2, r2_umitagged_unsorted_file)]
             if num_procs > 1:
                 pool = mp.Pool(processes=2)
-                procs = [pool.apply_async(os.system, args=(arg, )) for arg in cmds]
-                for proc in procs:
-                    proc.get()
+                procs = [pool.apply_async(concat, args=(pread, reads)) for pread, reads in args]
+                pool.close()
+                for p in procs:
+                    p.get()
             else:
-                os.system(cmds[0])
-                os.system(cmds[1])
+                concat(r1, r1_umitagged_unsorted_file)
+                concat(r2, r2_umitagged_unsorted_file)
     return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
+
+
+def get_sort_opts():
+    try:
+        version = float(re.match('sort \(\w+ \w+\) ([\d\.]*)',
+                                 subprocess.check_output('sort --version', shell=True)).group(1))
+        if version > 5.93:
+            return ' -V '
+    except Exception as e:
+        print(e)
+    return ''
 
 
 def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern, num_procs):
@@ -142,19 +189,31 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern,
     chunk_size += (4 - diff)
     pool = mp.Pool(processes=num_procs)
     res = [pool.apply_async(process_fq, args=(read1_out, read2_out, read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
-    r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(res, num_procs)
+    pool.close()
+    split_files = []
+    for r in res:
+        try:
+            outfiles = r.get()
+        except IOError as e:
+            raise e
+        split_files.append(outfiles)
+    r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = merge_output(split_files, num_procs)
     # Sort fastqs based on molecular barcode
-    cmd1 = 'cat ' + r1_umitagged_unsorted_file + ' | paste - - - - | sort -k1,1 -V | tr "\t" "\n" >' + read1_out
-    cmd2 = 'cat ' + r2_umitagged_unsorted_file + ' | paste - - - - | sort -k1,1 -V | tr "\t" "\n" >' + read2_out
+    sort_opts = get_sort_opts()
+    args = [(r1_umitagged_unsorted_file, sort_opts, read1_out),
+            (r2_umitagged_unsorted_file, sort_opts, read2_out)]
     if num_procs > 1:
         pool = mp.Pool(processes=2)
-        procs = [pool.apply_async(subprocess.check_call, args=(cmd, ), kwds=dict(shell=True, env=os.environ.copy())) for cmd in [cmd1, cmd2]]
+        procs = [pool.apply_async(sort_fastqs, args=arg) for arg in args]
+        pool.close()
+        for proc in procs:
+            proc.get()
     else:
-        subprocess.check_call(cmd1, shell=True, env=os.environ.copy())
-        subprocess.check_call(cmd2, shell=True, env=os.environ.copy())
-    for proc in procs:
-        proc.get()
-    tmp_files = glob.glob(os.path.join(os.path.dirname(r1_umitagged_unsorted_file), '*.tmp'))
+        for r_umitagged_unsorted_file, sort_opts, read_out in args:
+            output = sort_fastqs(r_umitagged_unsorted_file, sort_opts, read_out)
+            print(output)
+    tmp_pattern = '{}*.tmp'.format('_'.join(os.path.basename(r1_umitagged_unsorted_file).replace('.r1.', '.*.').replace('.R1.', '.*.').split('_')[:-1]))
+    tmp_files = glob.glob(os.path.join(os.path.dirname(r1_umitagged_unsorted_file), tmp_pattern))
     for tmp_file in tmp_files:
         os.remove(tmp_file)
 
