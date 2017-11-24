@@ -156,9 +156,13 @@ def merge_output(res, num_procs):
 
 
 def get_sort_opts():
-    version = float(subprocess.check_output('sort --version', shell=True).split('\n')[0].split(' ')[-1])
-    if version > 5.93:
-        return ' -V '
+    try:
+        version = float(re.match('sort \(\w+ \w+\) ([\d\.]*)',
+                                 subprocess.check_output('sort --version', shell=True)).group(1))
+        if version > 5.93:
+            return ' -V '
+    except Exception as e:
+        print(e)
     return ''
 
 
