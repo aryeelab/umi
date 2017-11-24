@@ -57,5 +57,4 @@ class TestUMITag(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    umitag.get_sort_opts()
     unittest.main()
