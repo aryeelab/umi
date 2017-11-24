@@ -128,6 +128,9 @@ def concat(partial_file, aggregate_file):
 
 
 def sort_fastqs(r_umitagged_unsorted_file, sort_opts, read_out):
+    """ sort by query name.
+        https://edwards.sdsu.edu/research/sorting-fastq-files-by-their-sequence-identifiers/
+    """
     cmd = 'cat {} | paste - - - - | sort -k1,1 {} | tr "\t" "\n" > {}'.format(r_umitagged_unsorted_file, sort_opts,
                                                                               read_out)
     sort_output = subprocess.check_output(cmd, shell=True, env=os.environ.copy())
