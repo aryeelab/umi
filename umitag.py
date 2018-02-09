@@ -188,7 +188,7 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern,
     diff = chunk_size % 4
     chunk_size += (4 - diff)
     pool = mp.Pool(processes=num_procs)
-    res = [pool.apply_async(process_fq, args=(read1_out, read2_out, read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
+    res = [pool.apply_async(process_fq, args=('{}_{}'.format(read1_out, chunk), '{}_{}'.format(read2_out, chunk), read1, read2, index1, index2, pattern, chunk * chunk_size, (chunk + 1) * chunk_size - 1)) for chunk in range(num_procs)]
     pool.close()
     split_files = []
     for r in res:
