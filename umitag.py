@@ -9,27 +9,20 @@ import subprocess
 __author__ = 'Martin Aryee, Allison MacLeay'
 
 
-def fq(file, start, stop):
-    try:
-        if re.search('.gz$', file):
-            fastq = gzip.open(file, 'rb')
-        else:
-            fastq = open(file, 'r')
-        ct = start / 4
-        with fastq as f:
-            for _ in range(start):
-                f.readline()
-            while (ct * 4) < stop - 1:
-                ct += 1
-                l1 = f.readline()
-                if not l1:
-                    break
-                l2 = f.readline()
-                l3 = f.readline()
-                l4 = f.readline()
-                yield [l1, l2, l3, l4]
-    finally:
-        fastq.close()
+def fq(file):
+    if re.search('.gz$', file):
+        fastq = gzip.open(file, 'rb')
+    else:
+        fastq = open(file, 'r')
+    with fastq as f:
+        while True:
+            l1 = f.readline()
+            if not l1:
+                break
+            l2 = f.readline()
+            l3 = f.readline()
+            l4 = f.readline()
+            yield [l1, l2, l3, l4]
 
 
 def get_molecular_barcode(read1, read2, index1, index2, strategy='8B12X,,,'):
@@ -78,7 +71,7 @@ def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, star
     r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
     r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
     try:
-        for r1, r2, i1, i2 in itertools.izip(fq(read1, start, stop), fq(read2, start, stop), fq(index1, start, stop), fq(index2, start, stop)):
+        for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
             # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
             molecular_id, r1[1], r2[1], r1[3], r2[3] = get_molecular_barcode(r1, r2, i1, i2, pattern)
             # Add molecular id to read headers
@@ -123,7 +116,7 @@ def get_sort_opts():
     return ''
 
 
-def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern, threads):
+def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern):
 
     end = get_numlines(read1)
     if not os.path.exists(out_dir):
@@ -168,7 +161,7 @@ def main():
         print('Index files are required when pattern is defined to use indexes!')
 
     umitag(args['read1_in'], args['read2_in'], args['index1'], args['index2'],
-           args['read1_out'], args['read2_out'], args['out_dir'], args['pattern'], 1)
+           args['read1_out'], args['read2_out'], args['out_dir'], args['pattern'])
 
 if __name__ == '__main__':
     main()
