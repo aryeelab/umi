@@ -63,9 +63,9 @@ def tag_query_name(query_name, molecular_id):
     return query_name
 
 
-def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, start, stop):
-    r1_umitagged_unsorted_file = '{}_{}.tmp'.format(read1_out, start)
-    r2_umitagged_unsorted_file = '{}_{}.tmp'.format(read2_out, start)
+def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern):
+    r1_umitagged_unsorted_file = '{}.tmp'.format(read1_out)
+    r2_umitagged_unsorted_file = '{}.tmp'.format(read2_out)
 
     # Create UMI-tagged R1 and R2 FASTQs
     r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
@@ -85,14 +85,6 @@ def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern, star
         print(e)
         raise e
     return r1_umitagged_unsorted_file, r2_umitagged_unsorted_file
-
-
-def get_numlines(fpath):
-    ct = 0
-    with open(fpath, 'rb') as fh:
-        for _ in fh:
-            ct += 1
-    return ct
 
 
 def sort_fastqs(r_umitagged_unsorted_file, sort_opts, read_out):
@@ -118,7 +110,6 @@ def get_sort_opts():
 
 def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern):
 
-    end = get_numlines(read1)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -135,7 +126,7 @@ def umitag(read1, read2, index1, index2, read1_out, read2_out, out_dir, pattern)
 
     r1_umitagged_unsorted_file, r2_umitagged_unsorted_file = process_fq(r1_umitagged_unsorted_file,
                                                                         r2_umitagged_unsorted_file,
-                                                                        read1, read2, index1, index2, pattern, 0, end)
+                                                                        read1, read2, index1, index2, pattern)
     sort_opts = get_sort_opts()
     args_list = [(r1_umitagged_unsorted_file, sort_opts, read1_out), (r2_umitagged_unsorted_file, sort_opts, read2_out)]
 
