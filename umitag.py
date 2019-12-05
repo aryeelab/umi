@@ -5,6 +5,7 @@ import gzip
 import itertools
 import argparse
 import subprocess
+import sys
 
 __author__ = 'Martin Aryee, Allison MacLeay'
 
@@ -71,7 +72,8 @@ def process_fq(read1_out, read2_out, read1, read2, index1, index2, pattern):
     r1_umitagged = open(r1_umitagged_unsorted_file, 'w')
     r2_umitagged = open(r2_umitagged_unsorted_file, 'w')
     try:
-        for r1, r2, i1, i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
+        zip_func = itertools.izip if sys.version_info[0] < 3 else zip
+        for r1, r2, i1, i2 in zip_func(fq(read1), fq(read2), fq(index1), fq(index2)):
             # Create molecular ID by concatenating molecular barcode and beginning of r1 read sequence
             molecular_id, r1[1], r2[1], r1[3], r2[3] = get_molecular_barcode(r1, r2, i1, i2, pattern)
             # Add molecular id to read headers
