@@ -49,7 +49,7 @@ def consolidate_position(bases, quals, min_qual, min_freq):
             num[bb] += 1
         if qq > qual[bb]:
             qual[bb] = qq
-    most_common_base = max(num.iterkeys(), key=(lambda key: num[key]))
+    most_common_base = max(num.keys(), key=(lambda key: num[key]))
     freq = float(num[most_common_base]) / len(bases)
     if freq > min_freq:
         return True, most_common_base, qual[most_common_base]
@@ -75,7 +75,7 @@ def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
         num_input_reads += len(reads)
         num_consolidated_reads += 1
         # Get all the bases and quals in the read
-        read_bases = zip(*[list(read.seq) for read in reads])
+        read_bases = zip(*[list(read.seq.decode('utf-8')) for read in reads])
         read_quals = zip(*[list(read.qual) for read in reads])
         # Iterate position by position
         consolidation_sucess, cons_seq, cons_qual = zip(*[consolidate_position(bases, quals, min_qual, min_freq) for bases, quals in zip(read_bases, read_quals)])
@@ -96,7 +96,7 @@ def consolidate(fastq_file, consolidated_fastq_file, min_qual, min_freq):
 
 def main():
     if len(sys.argv) < 5:
-        print 'Usage: python consolidate.py fastq_file consolidated_fastq_file min_qual min_freq'
+        print ('Usage: python consolidate.py fastq_file consolidated_fastq_file min_qual min_freq')
         sys.exit()
 
     fastq_file = sys.argv[1]

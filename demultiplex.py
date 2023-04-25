@@ -25,12 +25,12 @@ def fq(file):
         fastq = open(file, 'r')
     with fastq as f:
         while True:
-            l1 = f.readline()
+            l1 = f.readline().decode('UTF-8')
             if not l1:
                 break
-            l2 = f.readline()
-            l3 = f.readline()
-            l4 = f.readline()
+            l2 = f.readline().decode('UTF-8')
+            l3 = f.readline().decode('UTF-8')
+            l4 = f.readline().decode('UTF-8')
             yield [l1, l2, l3, l4]
 
 
@@ -74,14 +74,14 @@ def demultiplex(read1, read2, index1, index2, sample_barcodes, out_dir, min_read
     #it = itertools.izip(fq(args['read1']), fq(args['read2']), fq(args['index1']), fq(args['index2']))
     #for r1,r2,i1,i2 in itertools.islice(it, 0, 100):
     start = time.time()
-    for r1,r2,i1,i2 in itertools.izip(fq(read1), fq(read2), fq(index1), fq(index2)):
+    for r1,r2,i1,i2 in zip(fq(read1), fq(read2), fq(index1), fq(index2)):
         total_count += 1
         if total_count % 1000000 == 0:
             logger.info("Processed %d reads in %.1f minutes.", total_count, (time.time()-start)/60)
         sample_id = get_sample_id(i1, i2, sample_names)
 
         # Increment read count and create output buffers if this is a new sample barcode
-        if not count.has_key(sample_id):
+        if sample_id not in count:
             count[sample_id] = 0
             buffer_r1[sample_id] = []
             buffer_r2[sample_id] = []
@@ -152,7 +152,7 @@ def demultiplex(read1, read2, index1, index2, sample_barcodes, out_dir, min_read
     undetermined_i1.close()
     undetermined_i2.close()
 
-    num_fastqs = len([v for k,v in count.iteritems() if v>=min_reads])
+    num_fastqs = len([v for k,v in count.items() if v>=min_reads])
     logger.info('Wrote FASTQs for the %d sample barcodes out of %d with at least %d reads.', num_fastqs, len(count), min_reads)
 
 def main():
